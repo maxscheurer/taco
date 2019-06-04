@@ -1,6 +1,6 @@
 import numpy
 from pyscf import gto, scf
-from pyscf.dft.numint import eval_ao, eval_rho, eval_mat
+from pyscf.dft.numint import eval_ao, eval_rho, eval_mat, _scale_ao, _dot_ao_ao, NumInt, nr_rks_vxc
 from pyscf.dft import gen_grid, libxc
 
 # Run SCF in pyscf
@@ -35,13 +35,11 @@ system = gto.M(
 scfres1 = scf.RHF(h2o)
 scfres1.kernel()
 dm_h2o = scfres1.make_rdm1()
-# dm_h2o = dm_h2o + dm_h2o.T
+
 # CO
 scfres2 = scf.RHF(co)
 scfres2.kernel()
 dm_co = scfres2.make_rdm1()
-# dm_co = dm_co + dm_co.T
-
 
 # Construct grid for complex
 grids = gen_grid.Grids(system)
@@ -52,25 +50,37 @@ ao_co = eval_ao(co, grids.coords, deriv=0)
 
 # Make Complex DM
 ao_both = eval_ao(system, grids.coords, deriv=0)
-nao_tot = h2o.nao_nr() + co.nao_nr()
+nao_co = co.nao_nr()
+nao_h2o = h2o.nao_nr()
+nao_tot = nao_co + nao_h2o
 dm_both = numpy.zeros((nao_tot, nao_tot))
 
-nao_h2o = h2o.nao_nr()
-dm_both[:nao_h2o, :nao_h2o] = dm_co
-dm_both[nao_h2o:, nao_h2o:] = dm_h2o
+dm_both[:nao_co, :nao_co] = dm_co
+dm_both[nao_co:, nao_co:] = dm_h2o
 
-
+# Compute all densities on a grid
 rho_h2o  = eval_rho(h2o, ao_h2o, dm_h2o, xctype='LDA')
 rho_co  = eval_rho(co, ao_co, dm_co, xctype='LDA')
-#rho_both, dx_rho_both, dy_rho_both, dz_rho_both  = eval_rho(system, ao_both, dm_both, xctype='LDA')
-#rho_diff = rho_both - rho_h2o
-#vxcT_emb = libxc.eval_xc(xc_code, rho_both) 
-xc_code = 'LDA'
-vxcT_emb = libxc.eval_xc(xc_code, rho_h2o)
-#vxcT_emb += libxc.eval_xc(t_code, rho_both) 
-#vxcT_emb -= libxc.eval_xc(t_code, rho_h2o)
-fock_emb = eval_mat(co, ao_co, grids.weights, rho_co, vxcT_emb, xctype='LDA')
-#rho_co, dx_rho_co, dy_rho_co, dz_rho_co  = eval_rho(co, ao_co, dm_co, xctype='LDA')
+rho_both  = eval_rho(system, ao_both, dm_both, xctype='LDA')
+xc_code = 'LDA,VWN' # same as xc_code = 'XC_LDA_X + XC_LDA_C_VWN'
+t_code = 'XC_LDA_K_TF'
+ex, vxc, fxc, kxc = libxc.eval_xc(xc_code, rho_both)
+ex2, vxc2, fxc2, kxc2 = libxc.eval_xc(xc_code, rho_co)
+eT, vT, fT, kT = libxc.eval_xc(t_code, rho_both)
+eT2, vT2, fT2, kT2 = libxc.eval_xc(t_code, rho_co)
+vxc_emb = vxc[0] - vxc2[0]
+vT_emb = vT[0] - vT2[0]
 
-#scfres2 = scf.RHF(co)
-#scfres2.kernel()
+
+fock_emb_xc = eval_mat(co, ao_co, grids.weights, rho_co, vxc_emb, xctype='LDA')
+fock_emb_T = eval_mat(co, ao_co, grids.weights, rho_co, vT_emb, xctype='LDA')
+
+# Read reference
+ref_dma = numpy.loadtxt("../data/co_h2o_sto3g_dma.txt").reshape((nao_co,nao_co))
+ref_dmb = numpy.loadtxt("../data/co_h2o_sto3g_dmb.txt").reshape((nao_h2o,nao_h2o))
+ref_fock_xc = numpy.loadtxt("../data/co_h2o_sto3g_vxc.txt").reshape((nao_co,nao_co))
+ref_fock_T = numpy.loadtxt("../data/co_h2o_sto3g_vTs.txt").reshape((nao_co,nao_co))
+assert numpy.allclose(ref_dma*2, dm_co, atol=1e-7)
+assert numpy.allclose(ref_dmb*2, dm_h2o, atol=1e-7)
+assert numpy.allclose(ref_fock_xc, fock_emb_xc)
+assert numpy.allclose(ref_fock_T, fock_emb_T)
