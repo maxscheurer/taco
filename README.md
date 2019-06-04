@@ -1,8 +1,8 @@
 Taco
 ==============================
 [//]: # (Badges)
-[![Travis Build Status](https://travis-ci.org/REPLACE_WITH_OWNER_ACCOUNT/Taco.png)](https://travis-ci.org/REPLACE_WITH_OWNER_ACCOUNT/Taco)
-[![codecov](https://codecov.io/gh/REPLACE_WITH_OWNER_ACCOUNT/Taco/branch/master/graph/badge.svg)](https://codecov.io/gh/REPLACE_WITH_OWNER_ACCOUNT/Taco/branch/master)
+[![Travis Build Status](https://travis-ci.com/maxscheurer/Taco.png)](https://travis-ci.org/maxscheurer/Taco)
+[![codecov](https://codecov.io/gh/maxscheurer/Taco/branch/master/graph/badge.svg)](https://codecov.io/gh/maxscheurer/Taco/branch/master)
 
 FDE wrapper library
 
