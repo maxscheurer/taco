@@ -1,6 +1,8 @@
-import numpy
+
+import numpy as np
+
 from pyscf import gto, scf
-from pyscf.dft.numint import eval_ao, eval_rho, eval_mat, _scale_ao, _dot_ao_ao, NumInt, nr_rks_vxc
+from pyscf.dft.numint import eval_ao, eval_rho, eval_mat
 from pyscf.dft import gen_grid, libxc
 
 # Run SCF in pyscf
@@ -33,11 +35,13 @@ system = gto.M(
 # H2O
 # TODO: make a wrapper and make sure DMs are correct
 scfres1 = scf.RHF(h2o)
+scfres1.conv_tol = 1e-12
 scfres1.kernel()
 dm_h2o = scfres1.make_rdm1()
 
 # CO
 scfres2 = scf.RHF(co)
+scfres2.conv_tol = 1e-12
 scfres2.kernel()
 dm_co = scfres2.make_rdm1()
 
@@ -53,16 +57,16 @@ ao_both = eval_ao(system, grids.coords, deriv=0)
 nao_co = co.nao_nr()
 nao_h2o = h2o.nao_nr()
 nao_tot = nao_co + nao_h2o
-dm_both = numpy.zeros((nao_tot, nao_tot))
+dm_both = np.zeros((nao_tot, nao_tot))
 
 dm_both[:nao_co, :nao_co] = dm_co
 dm_both[nao_co:, nao_co:] = dm_h2o
 
 # Compute all densities on a grid
-rho_h2o  = eval_rho(h2o, ao_h2o, dm_h2o, xctype='LDA')
-rho_co  = eval_rho(co, ao_co, dm_co, xctype='LDA')
-rho_both  = eval_rho(system, ao_both, dm_both, xctype='LDA')
-xc_code = 'LDA,VWN' # same as xc_code = 'XC_LDA_X + XC_LDA_C_VWN'
+rho_h2o = eval_rho(h2o, ao_h2o, dm_h2o, xctype='LDA')
+rho_co = eval_rho(co, ao_co, dm_co, xctype='LDA')
+rho_both = eval_rho(system, ao_both, dm_both, xctype='LDA')
+xc_code = 'LDA,VWN'  # same as xc_code = 'XC_LDA_X + XC_LDA_C_VWN'
 t_code = 'XC_LDA_K_TF'
 ex, vxc, fxc, kxc = libxc.eval_xc(xc_code, rho_both)
 ex2, vxc2, fxc2, kxc2 = libxc.eval_xc(xc_code, rho_co)
@@ -76,11 +80,11 @@ fock_emb_xc = eval_mat(co, ao_co, grids.weights, rho_co, vxc_emb, xctype='LDA')
 fock_emb_T = eval_mat(co, ao_co, grids.weights, rho_co, vT_emb, xctype='LDA')
 
 # Read reference
-ref_dma = numpy.loadtxt("../data/co_h2o_sto3g_dma.txt").reshape((nao_co,nao_co))
-ref_dmb = numpy.loadtxt("../data/co_h2o_sto3g_dmb.txt").reshape((nao_h2o,nao_h2o))
-ref_fock_xc = numpy.loadtxt("../data/co_h2o_sto3g_vxc.txt").reshape((nao_co,nao_co))
-ref_fock_T = numpy.loadtxt("../data/co_h2o_sto3g_vTs.txt").reshape((nao_co,nao_co))
-assert numpy.allclose(ref_dma*2, dm_co, atol=1e-7)
-assert numpy.allclose(ref_dmb*2, dm_h2o, atol=1e-7)
-assert numpy.allclose(ref_fock_xc, fock_emb_xc)
-assert numpy.allclose(ref_fock_T, fock_emb_T)
+ref_dma = np.loadtxt("../data/co_h2o_sto3g_dma.txt").reshape((nao_co, nao_co))
+ref_dmb = np.loadtxt("../data/co_h2o_sto3g_dmb.txt").reshape((nao_h2o, nao_h2o))
+ref_fock_xc = np.loadtxt("../data/co_h2o_sto3g_vxc.txt").reshape((nao_co, nao_co))
+ref_fock_T = np.loadtxt("../data/co_h2o_sto3g_vTs.txt").reshape((nao_co, nao_co))
+np.testing.assert_allclose(ref_dma*2, dm_co, atol=1e-7)
+np.testing.assert_allclose(ref_dmb*2, dm_h2o, atol=1e-7)
+np.testing.assert_allclose(ref_fock_xc, fock_emb_xc, atol=1e-7)
+np.testing.assert_allclose(ref_fock_T, fock_emb_T, atol=1e-7)
