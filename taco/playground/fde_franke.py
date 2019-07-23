@@ -7,7 +7,6 @@ from pyscf.dft.numint import eval_ao, eval_rho, eval_mat
 from pyscf.dft import gen_grid, libxc
 
 
-
 def build_supersystem(mol1, mol2):
     # geom, mass, elem, elez, uniq
     geom1, _, elem1, _, _ = mol1.to_arrays()
@@ -28,6 +27,7 @@ def build_supersystem(mol1, mol2):
     no_com
     """.format(mol=mol_string)
     return psi4.geometry(temp)
+
 
 h2o = psi4.geometry("""
 0 1
@@ -155,5 +155,3 @@ np.testing.assert_allclose(ref_dma*2, dm_co, atol=1e-7)
 np.testing.assert_allclose(ref_dmb*2, dm_h2o, atol=1e-7)
 np.testing.assert_allclose(ref_fock_xc, fock_emb_xc, atol=1e-7)
 np.testing.assert_allclose(ref_fock_T, fock_emb_T, atol=1e-7)
-
-

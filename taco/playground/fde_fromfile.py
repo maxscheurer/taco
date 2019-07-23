@@ -68,7 +68,6 @@ eT2, vT2, fT2, kT2 = libxc.eval_xc(t_code, rho_co)
 eT3, vT3, fT3, kT3 = libxc.eval_xc(t_code, rho_h2o)
 vxc_emb = vxc[0] - vxc2[0]
 vT_emb = vT[0] - vT2[0]
-#excT = ex - ex2 + eT - eT2
 # Let's try something:
 exc_final = np.dot(rho_both*grids.weights, ex)
 exc_final -= np.dot(rho_co*grids.weights, ex2)
@@ -93,7 +92,6 @@ np.testing.assert_allclose(ref_dma*2, dm_co, atol=1e-7)
 np.testing.assert_allclose(ref_dmb*2, dm_h2o, atol=1e-7)
 np.testing.assert_allclose(ref_fock_xc, fock_emb_xc, atol=1e-7)
 np.testing.assert_allclose(ref_fock_T, fock_emb_T, atol=1e-7)
-#np.testing.assert_allclose(ref_fock_vJ, v_j, atol=1e-7)
 
 
 # Modify the fock matrix of system 1
@@ -102,18 +100,16 @@ focka = focka_ref.copy()
 int_fock = np.einsum('ab,ba', focka, dm_ref)
 print("Integral of whole Fock before: ", int_fock)
 non_elec_emb = ref_fock_xc + ref_fock_T
-#non_elec_emb = fock_emb_T + fock_emb_xc
 print("Non electrostatic part", non_elec_emb)
 focka += ref_fock_T + ref_fock_xc + ref_fock_vJ + ref_fock_vnuc0
 print("Fock after", focka)
-#focka += fock_emb_T + fock_emb_xc
 scfres3 = scf.RHF(co)
 scfres3.conv_tol = 1e-12
-scfres3.get_hcore = lambda *args:focka
+scfres3.get_hcore = lambda *args: focka
 # Re-evaluate the energy
 print("Compute again energy with non-additive part of the embedding potential")
 scfres3.kernel()
-# Get density matrix, to only evaluate 
+# Get density matrix, to only evaluate
 final_dma = scfres3.make_rdm1()
 emb_energy = np.einsum('ab,ba', focka_ref, dm_ref)
 
@@ -131,25 +127,21 @@ print("E_xc[rho_ref] : ", exc_final)
 print("E_T[rho_ref] : ", eT_final)
 total_add = exc_final + eT_final
 
-ENuc =  22.3674608413
-E1 =  -196.7776983134
-EJ =    76.6269597500
-Alpha_Exchange =    -6.7209458758
-Beta_Exchange =    -6.7209458758
-rho_A_rho_B= 20.9457553682
-rho_A_Nuc_B=-21.1298173325
-rho_B_Nuc_A=-20.8957755874
-Nuc_A_Nuc_B= 21.0776656185
-
-
+ENuc = 22.3674608413
+E1 = -196.7776983134
+EJ = 76.6269597500
+Alpha_Exchange = -6.7209458758
+Beta_Exchange = -6.7209458758
+rho_A_rho_B = 20.9457553682
+rho_A_Nuc_B = -21.1298173325
+rho_B_Nuc_A = -20.8957755874
+Nuc_A_Nuc_B = 21.0776656185
 
 # Linearization terms
 int_emb_xc = np.einsum('ab,ba', fock_emb_xc, final_dma)
 int_emb_T = np.einsum('ab,ba', fock_emb_T, final_dma)
 deltalin = (int_emb_xc - int_ref_xc) + (int_emb_T - int_ref_T)
 print("DeltaLin term: ", deltalin)
-
-
 print("What needs to be added to the energy:", total_add)
 emb_energy += ENuc + EJ + Alpha_Exchange + Beta_Exchange
 print("Final energy of embedded A system: ", emb_energy)
