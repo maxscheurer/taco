@@ -5,7 +5,7 @@ from scipy.linalg import block_diag
 import psi4
 
 
-def run_co_h2o_psi4():
+def run_co_h2o_psi4(basis):
     def build_supersystem(mol1, mol2):
         # geom, mass, elem, elez, uniq
         geom1, _, elem1, _, _ = mol1.to_arrays()
@@ -48,13 +48,13 @@ def run_co_h2o_psi4():
 
     psi4.core.be_quiet()
 
-    psi4.set_options({'basis': 'sto-3g'})
-    e_a, wfn_a = psi4.energy("SCF", molecule=co, return_wfn=True)
+    psi4.set_options({'basis': basis})
+    e_a, wfn_a = psi4.energy("SCF", molecule=co, return_wfn=True, e_convergence=1e-12)
     bas_a = wfn_a.basisset()
     psi4.core.clean()
 
-    psi4.set_options({'basis': 'sto-3g'})
-    e_b, wfn_b = psi4.energy("SCF", molecule=h2o, return_wfn=True)
+    psi4.set_options({'basis': basis})
+    e_b, wfn_b = psi4.energy("SCF", molecule=h2o, return_wfn=True, e_convergence=1e-12)
     dm_tot_b = wfn_b.Da().np + wfn_b.Db().np
     bas_b = wfn_b.basisset()
     psi4.core.clean()
@@ -102,7 +102,7 @@ def run_co_h2o_psi4():
         return et, vt
 
     system = build_supersystem(co, h2o)
-    basis_obj = psi4.core.BasisSet.build(system, 'ORBITAL', "sto-3g")
+    basis_obj = psi4.core.BasisSet.build(system, 'ORBITAL', basis)
 
     grid = psi4.core.DFTGrid.build(system, basis_obj)
 
@@ -124,6 +124,7 @@ def run_co_h2o_psi4():
     Db = wfn_b.Db()
     dma = Da.np
     dmb = Db.np
+    len_A = len(dma)
     dazeros = np.zeros_like(dma)
     dbzeros = np.zeros_like(dmb)
     dm_both = block_diag(dma, dmb)
@@ -217,20 +218,15 @@ def run_co_h2o_psi4():
         V[(lpos[:, None], lpos)] += 0.5 * (Vtmp + Vtmp.T)
         Vt[(lpos[:, None], lpos)] += 0.5 * (Vtmp2 + Vtmp2.T)
 
-    vxc_nad = V[:10, :10]
-    vt_nad = Vt[:10, :10]
-    qchem_int_ref_xc = -0.0011361532
-    qchem_int_ref_t = 0.0022364179
-    qchem_exc_nad = -0.0021105605
-    qchem_et_nad = 0.0030018734
+    # initialize dictionary
+    embdic = {}
+    # Non-electrostatic, non-additive contributions
+    vxc_nad = V[:len_A, :len_A]
+    vt_nad = Vt[:len_A, :len_A]
     int_ref_xc = 2*np.einsum('ab,ba', vxc_nad, dma)
     int_ref_t = 2*np.einsum('ab,ba', vt_nad, dma)
-    enad_xc = exc_tot - exc_a - exc_b
-    enad_t = et_tot - et_a - et_b
-    assert abs(qchem_et_nad - enad_t) < 1e-6
-    assert abs(qchem_exc_nad - enad_xc) < 1e-6
-    assert abs(qchem_int_ref_t - int_ref_t) < 1e-6
-    assert abs(qchem_int_ref_xc - int_ref_xc) < 1e-6
+    embdic['enad_xc'] = exc_tot - exc_a - exc_b
+    embdic['enad_t'] = et_tot - et_a - et_b
 
     # Re-evaluate HF
     base_wfn = psi4.core.Wavefunction.build(co)
@@ -240,27 +236,134 @@ def run_co_h2o_psi4():
     scf_wfn.initialize()
     # Add the operator (psi4 matrix) to the core Hamiltonian matrix
     scf_wfn.H().add(extra_op)
+    scf_wfn.e_convergence = 1e-12
     scf_wfn.iterations()
     scf_wfn.finalize_energy()
     dma_final = scf_wfn.Da().np
 
     # Use final DM of A and evaluate energy terms
+    embdic['rhoArhoB'] = 2*np.einsum('ab,ba', v_j, dma_final)
+    embdic['nucArhoB'] = 2*np.einsum('ab,ba', vAnucB, dma_final)
+    embdic['nucBrhoA'] = 2*np.einsum('ab,ba', vBnucA, dmb)
+    # Linearization terms
+    int_emb_xc = 2*np.einsum('ab,ba', vxc_nad, dma_final)
+    int_emb_t = 2*np.einsum('ab,ba', vt_nad, dma_final)
+    embdic['int_ref_xc'] = int_ref_xc
+    embdic['int_ref_t'] = int_ref_t
+    embdic['int_emb_xc'] = int_emb_xc
+    embdic['int_emb_t'] = int_emb_t
+    embdic['deltalin'] = (int_emb_xc - int_ref_xc) + (int_emb_t - int_ref_t)
+    psi4.core.clean()
+    return embdic
+
+
+def run_co_h2o_psi4_sto3g():
+    # Get HF-in-HF embedding energies
+    embdic = run_co_h2o_psi4('sto-3g')
+    # Electronstatic terms
+    # TODO: check why difference is not smaller
     qchem_rho_A_rho_B = 20.9457553682
     qchem_rho_A_Nuc_B = -21.1298173325
     qchem_rho_B_Nuc_A = -20.8957755874
-    rhoArhoB = 2*np.einsum('ab,ba', v_j, dma_final)
-    nucArhoB = 2*np.einsum('ab,ba', vAnucB, dma_final)
-    nucBrhoA = 2*np.einsum('ab,ba', vBnucA, dmb)
-    # TODO: check why difference is not smaller
-    assert abs(qchem_rho_A_rho_B - rhoArhoB) < 1e-4
-    assert abs(qchem_rho_A_Nuc_B - nucArhoB) < 1e-5
-    assert abs(qchem_rho_B_Nuc_A - nucBrhoA) < 1e-4
-    # Linearization terms
+    assert abs(qchem_rho_A_rho_B - embdic['rhoArhoB']) < 1e-4
+    assert abs(qchem_rho_A_Nuc_B - embdic['nucArhoB']) < 1e-5
+    assert abs(qchem_rho_B_Nuc_A - embdic['nucBrhoA']) < 1e-4
+    # DFT related terms
+    qchem_int_ref_xc = -0.0011361532
+    qchem_int_ref_t = 0.0022364179
+    qchem_exc_nad = -0.0021105605
+    qchem_et_nad = 0.0030018734
     qchem_int_emb_xc = -0.0011379466
     qchem_int_emb_t = 0.0022398242
-    int_emb_xc = 2*np.einsum('ab,ba', vxc_nad, dma_final)
-    int_emb_t = 2*np.einsum('ab,ba', vt_nad, dma_final)
-    deltalin = (int_emb_xc - int_ref_xc) + (int_emb_t - int_ref_t)
-    assert abs(qchem_int_emb_t - int_emb_t) < 1e-6
-    assert abs(qchem_int_emb_xc - int_emb_xc) < 1e-6
-    assert abs(deltalin - 0.0000016129) < 1e-8
+    qchem_deltalin = 0.0000016129
+    assert abs(qchem_et_nad - embdic['enad_t']) < 1e-6
+    assert abs(qchem_exc_nad - embdic['enad_xc']) < 1e-6
+    assert abs(qchem_int_ref_t - embdic['int_ref_t']) < 1e-6
+    assert abs(qchem_int_ref_xc - embdic['int_ref_xc']) < 1e-6
+    assert abs(qchem_int_emb_t - embdic['int_emb_t']) < 1e-6
+    assert abs(qchem_int_emb_xc - embdic['int_emb_xc']) < 1e-6
+    assert abs(qchem_deltalin - embdic['deltalin']) < 1e-8
+
+
+def run_co_h2o_psi4_dz():
+    # Get HF-in-HF embedding energies
+    embdic = run_co_h2o_psi4('cc-pvdz')
+    # Electronstatic terms
+    # TODO: check why difference is not smaller
+    qchem_rho_A_rho_B = 20.9054911884
+    qchem_rho_A_Nuc_B = -21.1510526049
+    qchem_rho_B_Nuc_A = -20.8349849585
+    assert abs(qchem_rho_A_rho_B - embdic['rhoArhoB']) < 1e-4
+    assert abs(qchem_rho_A_Nuc_B - embdic['nucArhoB']) < 1e-5
+    assert abs(qchem_rho_B_Nuc_A - embdic['nucBrhoA']) < 1e-4
+    # DFT related terms
+    qchem_int_ref_xc = -0.0015514201
+    qchem_int_ref_t = 0.0025414161
+    qchem_exc_nad = -0.0025622100
+    qchem_et_nad = 0.003191753
+    qchem_int_emb_xc = -0.0016014043
+    qchem_int_emb_t = 0.0026148569
+    qchem_deltalin = 0.0000234566
+    assert abs(qchem_et_nad - embdic['enad_t']) < 1e-6
+    assert abs(qchem_exc_nad - embdic['enad_xc']) < 1e-6
+    assert abs(qchem_int_ref_t - embdic['int_ref_t']) < 1e-6
+    assert abs(qchem_int_ref_xc - embdic['int_ref_xc']) < 1e-6
+    assert abs(qchem_int_emb_t - embdic['int_emb_t']) < 1e-6
+    assert abs(qchem_int_emb_xc - embdic['int_emb_xc']) < 1e-6
+    assert abs(qchem_deltalin - embdic['deltalin']) < 1e-6
+
+
+def run_co_h2o_psi4_tz():
+    # Get HF-in-HF embedding energies
+    embdic = run_co_h2o_psi4('cc-pvtz')
+    # Electronstatic terms
+    # TODO: check why difference is not smaller
+    qchem_rho_A_rho_B = 20.9042017461
+    qchem_rho_A_Nuc_B = -21.1526053452
+    qchem_rho_B_Nuc_A = -20.8322820052
+    assert abs(qchem_rho_A_rho_B - embdic['rhoArhoB']) < 1e-5
+    assert abs(qchem_rho_A_Nuc_B - embdic['nucArhoB']) < 1e-5
+    assert abs(qchem_rho_B_Nuc_A - embdic['nucBrhoA']) < 1e-5
+    # DFT related terms
+    qchem_int_ref_xc = -0.0018569491
+    qchem_int_ref_t = 0.0029461194
+    qchem_exc_nad = -0.0029467362
+    qchem_et_nad = 0.0036240425
+    qchem_int_emb_xc = -0.0019562173
+    qchem_int_emb_t = 0.0030885771
+    qchem_deltalin = 0.0000431896
+    assert abs(qchem_et_nad - embdic['enad_t']) < 1e-6
+    assert abs(qchem_exc_nad - embdic['enad_xc']) < 1e-6
+    assert abs(qchem_int_ref_t - embdic['int_ref_t']) < 1e-6
+    assert abs(qchem_int_ref_xc - embdic['int_ref_xc']) < 1e-6
+    assert abs(qchem_int_emb_t - embdic['int_emb_t']) < 1e-6
+    assert abs(qchem_int_emb_xc - embdic['int_emb_xc']) < 1e-6
+    assert abs(qchem_deltalin - embdic['deltalin']) < 1e-7
+
+
+def run_co_h2o_psi4_qz():
+    # Get HF-in-HF embedding energies
+    embdic = run_co_h2o_psi4('cc-pvqz')
+    # Electronstatic terms
+    # TODO: check why difference is not smaller
+    qchem_rho_A_rho_B = 20.9070590943
+    qchem_rho_A_Nuc_B = -21.1558918145
+    qchem_rho_B_Nuc_A = -20.8320256245
+    assert abs(qchem_rho_A_rho_B - embdic['rhoArhoB']) < 1e-5
+    assert abs(qchem_rho_A_Nuc_B - embdic['nucArhoB']) < 1e-5
+    assert abs(qchem_rho_B_Nuc_A - embdic['nucBrhoA']) < 1e-5
+    # DFT related terms
+    qchem_int_ref_xc = -0.0020002715
+    qchem_int_ref_t = 0.0031792373
+    qchem_exc_nad = -0.0031508737
+    qchem_et_nad = 0.0038973367
+    qchem_int_emb_xc = -0.0021589558
+    qchem_int_emb_t = 0.0034058294
+    qchem_deltalin = 0.0000679077
+    assert abs(qchem_et_nad - embdic['enad_t']) < 1e-6
+    assert abs(qchem_exc_nad - embdic['enad_xc']) < 1e-6
+    assert abs(qchem_int_ref_t - embdic['int_ref_t']) < 1e-6
+    assert abs(qchem_int_ref_xc - embdic['int_ref_xc']) < 1e-6
+    assert abs(qchem_int_emb_t - embdic['int_emb_t']) < 1e-6
+    assert abs(qchem_int_emb_xc - embdic['int_emb_xc']) < 1e-6
+    assert abs(qchem_deltalin - embdic['deltalin']) < 1e-7
