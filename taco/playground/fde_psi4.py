@@ -225,8 +225,8 @@ def run_co_h2o_psi4(basis):
     vt_nad = Vt[:len_A, :len_A]
     int_ref_xc = 2*np.einsum('ab,ba', vxc_nad, dma)
     int_ref_t = 2*np.einsum('ab,ba', vt_nad, dma)
-    embdic['enad_xc'] = exc_tot - exc_a - exc_b
-    embdic['enad_t'] = et_tot - et_a - et_b
+    embdic['exc_nad'] = exc_tot - exc_a - exc_b
+    embdic['et_nad'] = et_tot - et_a - et_b
 
     # Re-evaluate HF
     base_wfn = psi4.core.Wavefunction.build(co)
@@ -276,8 +276,8 @@ def run_co_h2o_psi4_sto3g():
     qchem_int_emb_xc = -0.0011379466
     qchem_int_emb_t = 0.0022398242
     qchem_deltalin = 0.0000016129
-    assert abs(qchem_et_nad - embdic['enad_t']) < 1e-6
-    assert abs(qchem_exc_nad - embdic['enad_xc']) < 1e-6
+    assert abs(qchem_et_nad - embdic['et_nad']) < 1e-6
+    assert abs(qchem_exc_nad - embdic['exc_nad']) < 1e-6
     assert abs(qchem_int_ref_t - embdic['int_ref_t']) < 1e-6
     assert abs(qchem_int_ref_xc - embdic['int_ref_xc']) < 1e-6
     assert abs(qchem_int_emb_t - embdic['int_emb_t']) < 1e-6
@@ -304,8 +304,8 @@ def run_co_h2o_psi4_dz():
     qchem_int_emb_xc = -0.0016014043
     qchem_int_emb_t = 0.0026148569
     qchem_deltalin = 0.0000234566
-    assert abs(qchem_et_nad - embdic['enad_t']) < 1e-6
-    assert abs(qchem_exc_nad - embdic['enad_xc']) < 1e-6
+    assert abs(qchem_et_nad - embdic['et_nad']) < 1e-6
+    assert abs(qchem_exc_nad - embdic['exc_nad']) < 1e-6
     assert abs(qchem_int_ref_t - embdic['int_ref_t']) < 1e-6
     assert abs(qchem_int_ref_xc - embdic['int_ref_xc']) < 1e-6
     assert abs(qchem_int_emb_t - embdic['int_emb_t']) < 1e-6
@@ -332,8 +332,8 @@ def run_co_h2o_psi4_tz():
     qchem_int_emb_xc = -0.0019562173
     qchem_int_emb_t = 0.0030885771
     qchem_deltalin = 0.0000431896
-    assert abs(qchem_et_nad - embdic['enad_t']) < 1e-6
-    assert abs(qchem_exc_nad - embdic['enad_xc']) < 1e-6
+    assert abs(qchem_et_nad - embdic['et_nad']) < 1e-6
+    assert abs(qchem_exc_nad - embdic['exc_nad']) < 1e-6
     assert abs(qchem_int_ref_t - embdic['int_ref_t']) < 1e-6
     assert abs(qchem_int_ref_xc - embdic['int_ref_xc']) < 1e-6
     assert abs(qchem_int_emb_t - embdic['int_emb_t']) < 1e-6
@@ -360,10 +360,17 @@ def run_co_h2o_psi4_qz():
     qchem_int_emb_xc = -0.0021589558
     qchem_int_emb_t = 0.0034058294
     qchem_deltalin = 0.0000679077
-    assert abs(qchem_et_nad - embdic['enad_t']) < 1e-6
-    assert abs(qchem_exc_nad - embdic['enad_xc']) < 1e-6
+    assert abs(qchem_et_nad - embdic['et_nad']) < 1e-6
+    assert abs(qchem_exc_nad - embdic['exc_nad']) < 1e-6
     assert abs(qchem_int_ref_t - embdic['int_ref_t']) < 1e-6
     assert abs(qchem_int_ref_xc - embdic['int_ref_xc']) < 1e-6
     assert abs(qchem_int_emb_t - embdic['int_emb_t']) < 1e-6
     assert abs(qchem_int_emb_xc - embdic['int_emb_xc']) < 1e-6
     assert abs(qchem_deltalin - embdic['deltalin']) < 1e-7
+
+
+if __name__ == "__main__":
+    run_co_h2o_psi4_sto3g()
+    run_co_h2o_psi4_dz()
+    run_co_h2o_psi4_tz()
+    run_co_h2o_psi4_qz()
