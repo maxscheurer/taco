@@ -120,7 +120,6 @@ def run_co_h2o_psi4():
     # Contruct potentials
     Vpot = psi4.core.VBase.build(basis_obj, superfunc, "RV")
     Vpot.initialize()
-    Vpot.compute_V
     Da = wfn_a.Da()
     Db = wfn_b.Db()
     dma = Da.np
@@ -218,15 +217,50 @@ def run_co_h2o_psi4():
         V[(lpos[:, None], lpos)] += 0.5 * (Vtmp + Vtmp.T)
         Vt[(lpos[:, None], lpos)] += 0.5 * (Vtmp2 + Vtmp2.T)
 
+    vxc_nad = V[:10, :10]
+    vt_nad = Vt[:10, :10]
     qchem_int_ref_xc = -0.0011361532
     qchem_int_ref_t = 0.0022364179
     qchem_exc_nad = -0.0021105605
     qchem_et_nad = 0.0030018734
-    int_emb_xc = 2*np.einsum('ab,ba', V[:10, :10], dma)
-    int_emb_t = 2*np.einsum('ab,ba', Vt[:10, :10], dma)
+    int_ref_xc = 2*np.einsum('ab,ba', vxc_nad, dma)
+    int_ref_t = 2*np.einsum('ab,ba', vt_nad, dma)
     enad_xc = exc_tot - exc_a - exc_b
     enad_t = et_tot - et_a - et_b
     assert abs(qchem_et_nad - enad_t) < 1e-6
     assert abs(qchem_exc_nad - enad_xc) < 1e-6
-    assert abs(qchem_int_ref_t - int_emb_t) < 1e-6
-    assert abs(qchem_int_ref_xc - int_emb_xc) < 1e-6
+    assert abs(qchem_int_ref_t - int_ref_t) < 1e-6
+    assert abs(qchem_int_ref_xc - int_ref_xc) < 1e-6
+
+    # Re-evaluate HF
+    base_wfn = psi4.core.Wavefunction.build(co)
+    # Embedding potential
+    extra_op = psi4.core.Matrix.from_array(vxc_nad + vt_nad + v_j + vAnucB)
+    scf_wfn = psi4.driver.proc.scf_wavefunction_factory("HF", base_wfn, "RHF")
+    scf_wfn.initialize()
+    # Add the operator (psi4 matrix) to the core Hamiltonian matrix
+    scf_wfn.H().add(extra_op)
+    scf_wfn.iterations()
+    scf_wfn.finalize_energy()
+    dma_final = scf_wfn.Da().np
+
+    # Use final DM of A and evaluate energy terms
+    qchem_rho_A_rho_B = 20.9457553682
+    qchem_rho_A_Nuc_B = -21.1298173325
+    qchem_rho_B_Nuc_A = -20.8957755874
+    rhoArhoB = 2*np.einsum('ab,ba', v_j, dma_final)
+    nucArhoB = 2*np.einsum('ab,ba', vAnucB, dma_final)
+    nucBrhoA = 2*np.einsum('ab,ba', vBnucA, dmb)
+    # TODO: check why difference is not smaller
+    assert abs(qchem_rho_A_rho_B - rhoArhoB) < 1e-4
+    assert abs(qchem_rho_A_Nuc_B - nucArhoB) < 1e-5
+    assert abs(qchem_rho_B_Nuc_A - nucBrhoA) < 1e-4
+    # Linearization terms
+    qchem_int_emb_xc = -0.0011379466
+    qchem_int_emb_t = 0.0022398242
+    int_emb_xc = 2*np.einsum('ab,ba', vxc_nad, dma_final)
+    int_emb_t = 2*np.einsum('ab,ba', vt_nad, dma_final)
+    deltalin = (int_emb_xc - int_ref_xc) + (int_emb_t - int_ref_t)
+    assert abs(qchem_int_emb_t - int_emb_t) < 1e-6
+    assert abs(qchem_int_emb_xc - int_emb_xc) < 1e-6
+    assert abs(deltalin - 0.0000016129) < 1e-8
