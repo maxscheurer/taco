@@ -175,6 +175,8 @@ def run_co_h2o_pyscf(ibasis, return_matrices=False):
 def run_co_h2o_pyscf_sto3g():
     # Get HF-in-HF embedding information
     embdic, matdic = run_co_h2o_pyscf('sto-3g', True)
+    nao_co = len(matdic['dma'])
+    nao_h2o = len(matdic['dmb'])
     # Read reference
     ref_dma = np.loadtxt(cache.files["co_h2o_sto3g_dma"]).reshape((nao_co, nao_co))
     ref_dmb = np.loadtxt(cache.files["co_h2o_sto3g_dmb"]).reshape((nao_h2o, nao_h2o))
