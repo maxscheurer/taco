@@ -9,6 +9,64 @@ from pyscf.dft import gen_grid, libxc
 from ..testdata.cache import cache
 
 
+def get_charges_and_coords(mol):
+    """Return arrays with charges and coordinates."""
+    bohr2a = 0.52917721067
+    coords = []
+    charges = []
+    atm_str = mol.atom.split()
+    for i in range(mol.natm):
+        tmp = [float(f)/bohr2a for f in atm_str[i*4+1:(i*4)+4]]
+        coords.append(tmp)
+        charges.append(mol._atm[i][0])
+    coords = np.array(coords)
+    charges = np.array(charges, dtype=int)
+    return charges, coords
+
+
+def get_coulomb(mol1, mol2, dm2):
+    # Coulomb repulsion
+    mol1234 = mol2 + mol2 + mol1 + mol1
+    shls_slice = (0, mol2.nbas,
+                  mol2.nbas, mol2.nbas+mol2.nbas,
+                  mol2.nbas+mol2.nbas, mol2.nbas+mol2.nbas+mol1.nbas,
+                  mol2.nbas+mol2.nbas+mol1.nbas, mol1234.nbas)
+    eris = mol1234.intor('int2e', shls_slice=shls_slice)
+    v_coulomb = np.einsum('ab,abcd->cd', dm2, eris)
+    return v_coulomb
+
+
+def get_attraction_potential(mol1, mol2):
+    # Nuclear-electron attraction integrals
+    mol1_charges, mol1_coords = get_charges_and_coords(mol1)
+    mol2_charges, mol2_coords = get_charges_and_coords(mol2)
+    vAnucB = 0
+    for i, q in enumerate(mol2_charges):
+        mol1.set_rinv_origin(mol2_coords[i])
+        vAnucB += mol1.intor('int1e_rinv') * -q
+
+    vBnucA = 0
+    for i, q in enumerate(mol1_charges):
+        mol2.set_rinv_origin(mol1_coords[i])
+        vBnucA += mol2.intor('int1e_rinv') * -q
+    return vAnucB, vBnucA
+
+
+def get_dft_grid_stuff(code, rho_both, rho1, rho2):
+    # Evaluate energy densities and potentials on a grid
+    exc, vxc, fxc, kxc = libxc.eval_xc(code, rho_both)
+    exc2, vxc2, fxc2, kxc2 = libxc.eval_xc(code, rho1)
+    exc3, vxc3, fxc3, kxc3 = libxc.eval_xc(code, rho2)
+    return (exc, exc2, exc3), (vxc, vxc2, vxc3)
+
+
+def get_nad_energy(grids, energies, rho_both, rho1, rho2):
+    e_nad = np.dot(rho_both*grids.weights, energies[0])
+    e_nad -= np.dot(rho1*grids.weights, energies[1])
+    e_nad -= np.dot(rho2*grids.weights, energies[2])
+    return e_nad
+
+
 def run_co_h2o_pyscf(ibasis, return_matrices=False):
     # Run SCF in pyscf
     h2o = gto.M(
@@ -58,67 +116,29 @@ def run_co_h2o_pyscf(ibasis, return_matrices=False):
     dm_both[:nao_co, :nao_co] = dma
     dm_both[nao_co:, nao_co:] = dmb
 
-    # Compute all densities on a grid
+    # Compute DFT non-additive potential and energies
     rho_h2o = eval_rho(h2o, ao_h2o, dmb, xctype='LDA')
     rho_co = eval_rho(co, ao_co, dma, xctype='LDA')
     rho_both = eval_rho(system, ao_both, dm_both, xctype='LDA')
+    # Compute all densities on a grid
     xc_code = 'LDA,VWN'  # same as xc_code = 'XC_LDA_X + XC_LDA_C_VWN'
     t_code = 'XC_LDA_K_TF'
-    ex, vxc, fxc, kxc = libxc.eval_xc(xc_code, rho_both)
-    ex2, vxc2, fxc2, kxc2 = libxc.eval_xc(xc_code, rho_co)
-    ex3, vxc3, fxc3, kxc3 = libxc.eval_xc(xc_code, rho_h2o)
-    eT, vT, fT, kT = libxc.eval_xc(t_code, rho_both)
-    eT2, vT2, fT2, kT2 = libxc.eval_xc(t_code, rho_co)
-    eT3, vT3, fT3, kT3 = libxc.eval_xc(t_code, rho_h2o)
-    vxc_emb = vxc[0] - vxc2[0]
-    vt_emb = vT[0] - vT2[0]
+    excs, vxcs = get_dft_grid_stuff(xc_code, rho_both, rho_co, rho_h2o)
+    ets, vts = get_dft_grid_stuff(t_code, rho_both, rho_co, rho_h2o)
+    vxc_emb = vxcs[0][0] - vxcs[1][0]
+    vt_emb = vts[0][0] - vts[1][0]
     # Energy functionals:
-    exc_nad = np.dot(rho_both*grids.weights, ex)
-    exc_nad -= np.dot(rho_co*grids.weights, ex2)
-    exc_nad -= np.dot(rho_h2o*grids.weights, ex3)
-    et_nad = np.dot(rho_both*grids.weights, eT)
-    et_nad -= np.dot(rho_co*grids.weights, eT2)
-    et_nad -= np.dot(rho_h2o*grids.weights, eT3)
+    exc_nad = get_nad_energy(grids, excs, rho_both, rho_co, rho_h2o)
+    et_nad = get_nad_energy(grids, ets, rho_both, rho_co, rho_h2o)
 
     fock_emb_xc = eval_mat(co, ao_co, grids.weights, rho_co, vxc_emb, xctype='LDA')
     fock_emb_t = eval_mat(co, ao_co, grids.weights, rho_co, vt_emb, xctype='LDA')
 
     # Electrostatic part
-    # Coulomb repulsion
-    mol1234 = h2o + h2o + co + co
-    shls_slice = (0, h2o.nbas,
-                  h2o.nbas, h2o.nbas+h2o.nbas,
-                  h2o.nbas+h2o.nbas, h2o.nbas+h2o.nbas+co.nbas,
-                  h2o.nbas+h2o.nbas+co.nbas, mol1234.nbas)
-    eris = mol1234.intor('int2e', shls_slice=shls_slice)
-    v_coulomb = np.einsum('ab,abcd->cd', dmb, eris)
-
-    def get_charges_and_coords(mol):
-        """Return arrays with charges and coordinates."""
-        bohr2a = 0.52917721067
-        coords = []
-        charges = []
-        atm_str = mol.atom.split()
-        for i in range(mol.natm):
-            tmp = [float(f)/bohr2a for f in atm_str[i*4+1:(i*4)+4]]
-            coords.append(tmp)
-            charges.append(mol._atm[i][0])
-        coords = np.array(coords)
-        charges = np.array(charges, dtype=int)
-        return charges, coords
+    v_coulomb = get_coulomb(co, h2o, dmb)
 
     # Nuclear-electron integrals
-    co_charges, co_coords = get_charges_and_coords(co)
-    h2o_charges, h2o_coords = get_charges_and_coords(h2o)
-    vAnucB = 0
-    for i, q in enumerate(h2o_charges):
-        co.set_rinv_origin(h2o_coords[i])
-        vAnucB += co.intor('int1e_rinv') * -q
-
-    vBnucA = 0
-    for i, q in enumerate(co_charges):
-        h2o.set_rinv_origin(co_coords[i])
-        vBnucA += h2o.intor('int1e_rinv') * -q
+    vAnucB, vBnucA = get_attraction_potential(co, h2o)
 
     # Perform the HF-in-HF embedding
     # Modify Fock matrix
@@ -223,69 +243,31 @@ def run_co_h2o_pyscf_dft(ibasis, return_matrices=False):
     dm_both[:nao_co, :nao_co] = dma
     dm_both[nao_co:, nao_co:] = dmb
 
-    # Compute all densities on a grid
+    # Compute DFT non-additive potential and energies
     rho_h2o = eval_rho(h2o, ao_h2o, dmb, xctype='LDA')
     rho_co = eval_rho(co, ao_co, dma, xctype='LDA')
     rho_both = eval_rho(system, ao_both, dm_both, xctype='LDA')
+    # Compute all densities on a grid
     xc_code = 'LDA,VWN'  # same as xc_code = 'XC_LDA_X + XC_LDA_C_VWN'
     t_code = 'XC_LDA_K_TF'
-    ex, vxc, fxc, kxc = libxc.eval_xc(xc_code, rho_both)
-    ex2, vxc2, fxc2, kxc2 = libxc.eval_xc(xc_code, rho_co)
-    ex3, vxc3, fxc3, kxc3 = libxc.eval_xc(xc_code, rho_h2o)
-    eT, vT, fT, kT = libxc.eval_xc(t_code, rho_both)
-    eT2, vT2, fT2, kT2 = libxc.eval_xc(t_code, rho_co)
-    eT3, vT3, fT3, kT3 = libxc.eval_xc(t_code, rho_h2o)
-    vxc_emb = vxc[0] - vxc2[0]
-    vt_emb = vT[0] - vT2[0]
+    excs, vxcs = get_dft_grid_stuff(xc_code, rho_both, rho_co, rho_h2o)
+    ets, vts = get_dft_grid_stuff(t_code, rho_both, rho_co, rho_h2o)
+    vxc_emb = vxcs[0][0] - vxcs[1][0]
+    vt_emb = vts[0][0] - vts[1][0]
     # Energy functionals:
-    exc_nad = np.dot(rho_both*grids.weights, ex)
-    exc_nad -= np.dot(rho_co*grids.weights, ex2)
-    exc_nad -= np.dot(rho_h2o*grids.weights, ex3)
-    et_nad = np.dot(rho_both*grids.weights, eT)
-    et_nad -= np.dot(rho_co*grids.weights, eT2)
-    et_nad -= np.dot(rho_h2o*grids.weights, eT3)
+    exc_nad = get_nad_energy(grids, excs, rho_both, rho_co, rho_h2o)
+    et_nad = get_nad_energy(grids, ets, rho_both, rho_co, rho_h2o)
 
     fock_emb_xc = eval_mat(co, ao_co, grids.weights, rho_co, vxc_emb, xctype='LDA')
     fock_emb_t = eval_mat(co, ao_co, grids.weights, rho_co, vt_emb, xctype='LDA')
 
     # Electrostatic part
-    # Coulomb repulsion
-    mol1234 = h2o + h2o + co + co
-    shls_slice = (0, h2o.nbas,
-                  h2o.nbas, h2o.nbas+h2o.nbas,
-                  h2o.nbas+h2o.nbas, h2o.nbas+h2o.nbas+co.nbas,
-                  h2o.nbas+h2o.nbas+co.nbas, mol1234.nbas)
-    eris = mol1234.intor('int2e', shls_slice=shls_slice)
-    v_coulomb = np.einsum('ab,abcd->cd', dmb, eris)
-
-    def get_charges_and_coords(mol):
-        """Return arrays with charges and coordinates."""
-        bohr2a = 0.52917721067
-        coords = []
-        charges = []
-        atm_str = mol.atom.split()
-        for i in range(mol.natm):
-            tmp = [float(f)/bohr2a for f in atm_str[i*4+1:(i*4)+4]]
-            coords.append(tmp)
-            charges.append(mol._atm[i][0])
-        coords = np.array(coords)
-        charges = np.array(charges, dtype=int)
-        return charges, coords
+    v_coulomb = get_coulomb(co, h2o, dmb)
 
     # Nuclear-electron integrals
-    co_charges, co_coords = get_charges_and_coords(co)
-    h2o_charges, h2o_coords = get_charges_and_coords(h2o)
-    vAnucB = 0
-    for i, q in enumerate(h2o_charges):
-        co.set_rinv_origin(h2o_coords[i])
-        vAnucB += co.intor('int1e_rinv') * -q
+    vAnucB, vBnucA = get_attraction_potential(co, h2o)
 
-    vBnucA = 0
-    for i, q in enumerate(co_charges):
-        h2o.set_rinv_origin(co_coords[i])
-        vBnucA += h2o.intor('int1e_rinv') * -q
-
-    # Perform the HF-in-HF embedding
+    # Perform the DFT-in-DFT embedding
     # Modify Fock matrix
     def get_veff_emb(*args):
         vh = scfres2.get_veff(*args)
@@ -475,7 +457,7 @@ def run_co_h2o_pyscf_qz():
 
 
 def run_co_h2o_pyscf_dft_sto3g():
-    # Get HF-in-HF embedding energies
+    # Get DFT-in-DFT embedding energies
     embdic = run_co_h2o_pyscf_dft('sto-3g')
     # Electronstatic terms
     # TODO: check why difference is not smaller
@@ -502,9 +484,96 @@ def run_co_h2o_pyscf_dft_sto3g():
     assert abs(qchem_deltalin - embdic['deltalin']) < 1e-7
 
 
+def run_co_h2o_pyscf_dft_dz():
+    # Get DFT-in-DFT embedding energies
+    embdic = run_co_h2o_pyscf_dft('cc-pvdz')
+    # Electronstatic terms
+    # TODO: check why difference is not smaller
+    qchem_rho_A_rho_B = 20.8725160406
+    qchem_rho_A_Nuc_B = -21.1011016631
+    qchem_rho_B_Nuc_A = -20.8507990282
+    assert abs(qchem_rho_A_rho_B - embdic['rhoArhoB']) < 1e-5
+    assert abs(qchem_rho_A_Nuc_B - embdic['nucArhoB']) < 1e-5
+    assert abs(qchem_rho_B_Nuc_A - embdic['nucBrhoA']) < 1e-5
+    # DFT related terms
+    qchem_int_ref_xc = -0.0017325232
+    qchem_int_ref_t = 0.0029539222
+    qchem_exc_nad = -0.0028904861
+    qchem_et_nad = 0.0037350854
+    qchem_int_emb_xc = -0.0017855875
+    qchem_int_emb_t = 0.0030332608
+    qchem_deltalin = 0.0000262742
+    assert abs(qchem_et_nad - embdic['et_nad']) < 1e-6
+    assert abs(qchem_exc_nad - embdic['exc_nad']) < 1e-6
+    assert abs(qchem_int_ref_t - embdic['int_ref_t']) < 1e-6
+    assert abs(qchem_int_ref_xc - embdic['int_ref_xc']) < 1e-6
+    assert abs(qchem_int_emb_t - embdic['int_emb_t']) < 1e-6
+    assert abs(qchem_int_emb_xc - embdic['int_emb_xc']) < 1e-6
+    assert abs(qchem_deltalin - embdic['deltalin']) < 1e-7
+
+
+def run_co_h2o_pyscf_dft_tz():
+    # Get DFT-in-DFT embedding energies
+    embdic = run_co_h2o_pyscf_dft('cc-pvtz')
+    # Electronstatic terms
+    # TODO: check why difference is not smaller
+    qchem_rho_A_rho_B = 20.8748968978
+    qchem_rho_A_Nuc_B = -21.1114647888
+    qchem_rho_B_Nuc_A = -20.8432761404
+    assert abs(qchem_rho_A_rho_B - embdic['rhoArhoB']) < 1e-5
+    assert abs(qchem_rho_A_Nuc_B - embdic['nucArhoB']) < 1e-5
+    assert abs(qchem_rho_B_Nuc_A - embdic['nucBrhoA']) < 1e-5
+    # DFT related terms
+    qchem_int_ref_xc = -0.0021801275
+    qchem_int_ref_t = 0.0035874689
+    qchem_exc_nad = -0.0034828943
+    qchem_et_nad = 0.0044317533
+    qchem_int_emb_xc = -0.0022948480
+    qchem_int_emb_t = 0.0037558987
+    qchem_deltalin = 0.0000537094
+    assert abs(qchem_et_nad - embdic['et_nad']) < 1e-6
+    assert abs(qchem_exc_nad - embdic['exc_nad']) < 1e-6
+    assert abs(qchem_int_ref_t - embdic['int_ref_t']) < 1e-6
+    assert abs(qchem_int_ref_xc - embdic['int_ref_xc']) < 1e-6
+    assert abs(qchem_int_emb_t - embdic['int_emb_t']) < 1e-6
+    assert abs(qchem_int_emb_xc - embdic['int_emb_xc']) < 1e-6
+    assert abs(qchem_deltalin - embdic['deltalin']) < 1e-7
+
+
+def run_co_h2o_pyscf_dft_qz():
+    # Get DFT-in-DFT embedding energies
+    embdic = run_co_h2o_pyscf_dft('cc-pvqz')
+    # Electronstatic terms
+    # TODO: check why difference is not smaller
+    qchem_rho_A_rho_B = 20.8783285224
+    qchem_rho_A_Nuc_B = -21.1156265344
+    qchem_rho_B_Nuc_A = -20.8427983360
+    assert abs(qchem_rho_A_rho_B - embdic['rhoArhoB']) < 1e-5
+    assert abs(qchem_rho_A_Nuc_B - embdic['nucArhoB']) < 1e-5
+    assert abs(qchem_rho_B_Nuc_A - embdic['nucBrhoA']) < 1e-5
+    # DFT related terms
+    qchem_int_ref_xc = -0.0024337314
+    qchem_int_ref_t = 0.0040024502
+    qchem_exc_nad = -0.0038342924
+    qchem_et_nad = 0.0049102990
+    qchem_int_emb_xc = -0.0026336745
+    qchem_int_emb_t = 0.0042939131
+    qchem_deltalin = 0.0000915199
+    assert abs(qchem_et_nad - embdic['et_nad']) < 1e-6
+    assert abs(qchem_exc_nad - embdic['exc_nad']) < 1e-6
+    assert abs(qchem_int_ref_t - embdic['int_ref_t']) < 1e-6
+    assert abs(qchem_int_ref_xc - embdic['int_ref_xc']) < 1e-6
+    assert abs(qchem_int_emb_t - embdic['int_emb_t']) < 1e-6
+    assert abs(qchem_int_emb_xc - embdic['int_emb_xc']) < 1e-6
+    assert abs(qchem_deltalin - embdic['deltalin']) < 1e-7
+
+
 if __name__ == "__main__":
     run_co_h2o_pyscf_sto3g()
     run_co_h2o_pyscf_dz()
     run_co_h2o_pyscf_tz()
     run_co_h2o_pyscf_qz()
     run_co_h2o_pyscf_dft_sto3g()
+    run_co_h2o_pyscf_dft_dz()
+    run_co_h2o_pyscf_dft_tz()
+    run_co_h2o_pyscf_dft_qz()
