@@ -39,7 +39,7 @@ class HFPySCF(SCFMethod):
 
     """
     def __init__(self, mol, basis):
-        """ SCFMethod object.
+        """ HFPySCF object.
 
         Parameters
         ----------
@@ -50,6 +50,8 @@ class HFPySCF(SCFMethod):
 
         """
         SCFMethod.__init__(self, mol)
+        if not isinstance(basis, str):
+            raise TypeError("Basis set must be a string.")
         self.mol_pyscf = get_pyscf_molecule(self.mol, basis)
         if self.restricted:
             self.scf_object = scf.RHF(self.mol_pyscf)

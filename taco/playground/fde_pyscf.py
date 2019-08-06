@@ -6,7 +6,7 @@ from pyscf import lib
 from pyscf.dft.numint import eval_ao, eval_rho, eval_mat
 from pyscf.dft import gen_grid, libxc
 
-from ..testdata.cache import cache
+from taco.testdata.cache import cache
 
 
 def get_charges_and_coords(mol):

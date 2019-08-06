@@ -200,6 +200,8 @@ def get_pyscf_method(args):
                               args["xc_code"])
     elif args["method"].lower() == 'hf':
         method = HFPySCF(args["mol"], args["method"], args["basis"])
+    else:
+        raise NotImplementedError
     return method
 
 

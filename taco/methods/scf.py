@@ -2,10 +2,10 @@
 FDE SCF Methods Base Class.
 """
 
-from taco.methods.base import BaseMethod
+from qcelemental.models import Molecule
 
 
-class SCFMethod(BaseMethod):
+class SCFMethod():
     """Base class for SCF method objects.
 
     Attributes
@@ -38,13 +38,23 @@ class SCFMethod(BaseMethod):
         Parameters
         ----------
         mol : qcelemental Molecule object
-            Molecule information
+            Molecule information.
         """
-        BaseMethod.__init__(self, mol)
+        if not isinstance(mol, Molecule):
+            raise TypeError('Molecule object should be instance of qcelemental.models.Molecule')
+        self.mol = mol
+        self.new = True
+        self.density = None
+        self.energy = {}
+
+    @property
+    def restricted(self):
+        """Whether it is Restricted case."""
+        return self.mol.molecular_multiplicity == 1
 
     def get_density(self):
         """Return the DM(s)."""
-        if self.density:
+        if self.density.any():
             return self.density
         else:
             self.solve()
@@ -71,4 +81,8 @@ class SCFMethod(BaseMethod):
             Effective potential in the form of a Fock matrix.
 
         """
+        raise NotImplementedError
+
+    def solve(self):
+        """Perform SCF calculation."""
         raise NotImplementedError

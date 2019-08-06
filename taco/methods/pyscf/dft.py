@@ -1,5 +1,5 @@
 """
-HF method using PySCF.
+DFT method using PySCF.
 """
 
 from pyscf import dft, lib
@@ -107,6 +107,6 @@ class DFTPySCF(SCFMethod):
             envrionment.
 
         """
-        self.scf_object.kernel(scfkwargs)
+        self.scf_object.kernel(**scfkwargs)
         self.energy["scf"] = self.scf_object.e_tot
         self.density = self.scf_object.make_rdm1()
