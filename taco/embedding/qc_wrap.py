@@ -57,20 +57,20 @@ class QcWrap():
 
     def check_emb_arguments(self, args):
         self.check_basic_arguments(args)
-        if args['xc_code'] == None:
+        if args['xc_code'] is None:
             raise KeyError("Missing to specify `xc_code` in emb_args.")
-        if not 't_code' in args:
+        if 't_code' not in args:
             raise KeyError("Missing to specify `t_code` in emb_args.")
 
     @staticmethod
     def check_basic_arguments(args):
-        if not 'mol' in args:
+        if not 'mol' not in args:
             raise KeyError("Missing to specify `molecule`.")
-        if not 'method' in args:
+        if 'method' not in args:
             raise KeyError("Missing to specify `method`.")
-        if not 'basis' in args:
+        if 'basis' not in args:
             raise KeyError("Missing to specify `basis`.")
-        if not 'xc_code' in args:
+        if 'xc_code' not in args:
             args['xc_code'] = None
 
     def create_fragments(self, frag0_args, frag1_args):

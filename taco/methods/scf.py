@@ -52,6 +52,7 @@ class ScfMethod():
         """Whether it is Restricted case."""
         return self.mol.molecular_multiplicity == 1
 
+    # TODO: probably replace with a @cached_property
     def get_density(self):
         """Return the DM(s)."""
         if self.density != []:
@@ -70,7 +71,7 @@ class ScfMethod():
 
     def get_fock(self):
         """Contruct Fock matrix."""
-        raise NotImplementedError
+        raise NotImplementedError("get_fock not implemented.")
 
     def perturb_fock(self, pot):
         """Add an effective potential to the Fock matrix.
@@ -81,8 +82,8 @@ class ScfMethod():
             Effective potential in the form of a Fock matrix.
 
         """
-        raise NotImplementedError
+        raise NotImplementedError("perturb_fock not implemented.")
 
     def solve_scf(self):
         """Perform SCF calculation."""
-        raise NotImplementedError
+        raise NotImplementedError("solve_scf not implemented.")

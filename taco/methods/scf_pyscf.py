@@ -74,7 +74,7 @@ class ScfPyScf(ScfMethod):
         basis : string
             Name of the basis set to be used.
         method : string
-            Type of SCF method. Available options are:`hf` or `dft`. 
+            Type of SCF method. Available options are:`hf` or `dft`.
         xc_code : string
             Only needed for DFT.
         """
@@ -91,10 +91,10 @@ class ScfPyScf(ScfMethod):
             elif method.lower() == 'hf':
                 self.scf_object = scf.RHF(self.mol_pyscf)
             else:
-                raise NotImplementedError
+                raise ValueError("Unknown method {}.".format(method))
         else:
             # Unrestricted case not implemented
-            raise NotImplementedError
+            raise NotImplementedError("Unrestricted SCF not implemented.")
         # Keep a clean copy of the scf object for latter
         self._scf_object = copy(self.scf_object)
 

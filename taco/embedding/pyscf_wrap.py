@@ -289,6 +289,8 @@ class PyScfWrap(QcWrap):
         vemb = self.compute_embedding_potential()
         # Add embedding potential to Fock matrix and run SCF
         self.emb_method.perturb_fock(vemb)
+        # TODO: pass convergence tolerance from outside
+        # TODO: conv_tol_grad missing
         self.emb_method.solve_scf(conv_tol=1e-14)
         # Save final values
         self.save_info()
