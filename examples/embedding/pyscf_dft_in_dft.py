@@ -3,7 +3,7 @@ Test method objects.
 """
 from qcelemental.models import Molecule
 
-from taco.embedding.pyscf_wrap import PySCFWrap
+from taco.embedding.pyscf_wrap import PyScfWrap
 from taco.testdata.cache import cache
 
 
@@ -24,7 +24,7 @@ if __name__ == "__main__":
     embs = {"mol": co, "basis": basis, "method": 'dft',
             "xc_code": xc_code, "t_code": 'XC_LDA_K_TF'}
     # Make a wrap
-    wrap = PySCFWrap(args0, args1, embs)
+    wrap = PyScfWrap(args0, args1, embs)
     # Run the embedding calculation
     wrap.run_embedding()
     # Save information to files

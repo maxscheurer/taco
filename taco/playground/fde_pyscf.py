@@ -562,10 +562,10 @@ def run_co_h2o_pyscf_dft_qz():
 
 
 if __name__ == "__main__":
-#   run_co_h2o_pyscf_sto3g()
-#   run_co_h2o_pyscf_dz()
-#   run_co_h2o_pyscf_tz()
-#   run_co_h2o_pyscf_qz()
+    run_co_h2o_pyscf_sto3g()
+    run_co_h2o_pyscf_dz()
+    run_co_h2o_pyscf_tz()
+    run_co_h2o_pyscf_qz()
     run_co_h2o_pyscf_dft_sto3g()
     run_co_h2o_pyscf_dft_dz()
     run_co_h2o_pyscf_dft_tz()
