@@ -5,7 +5,7 @@ FDE SCF Methods Base Class.
 from qcelemental.models import Molecule
 
 
-class SCFMethod():
+class ScfMethod():
     """Base class for SCF method objects.
 
     Attributes
@@ -26,9 +26,9 @@ class SCFMethod():
         Initialize the method.
     get_density(self) :
         Return density/densities.
-    solve :
+    solve_scf :
         Perform the SCF calculation.
-    perturbe_fock(self, pot) :
+    perturb_fock(self, pot) :
         Add a potential to the Fock matrix.
 
     """
@@ -57,7 +57,7 @@ class SCFMethod():
         if self.density != []:
             return self.density
         else:
-            self.solve(conv_tol=1e-12)
+            self.solve_scf(conv_tol=1e-12)
             return self.density
 
     def get_energy(self):
@@ -65,14 +65,14 @@ class SCFMethod():
         if self.energy.get("scf", 0):
             return self.energy["scf"]
         else:
-            self.solve(conv_tol=1e-12)
+            self.solve_scf(conv_tol=1e-12)
             return self.energy["scf"]
 
     def get_fock(self):
         """Contruct Fock matrix."""
         raise NotImplementedError
 
-    def perturbe_fock(self, pot):
+    def perturb_fock(self, pot):
         """Add an effective potential to the Fock matrix.
 
         Parameters
@@ -83,6 +83,6 @@ class SCFMethod():
         """
         raise NotImplementedError
 
-    def solve(self):
+    def solve_scf(self):
         """Perform SCF calculation."""
         raise NotImplementedError

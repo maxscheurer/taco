@@ -269,20 +269,13 @@ def run_co_h2o_pyscf_dft(ibasis, return_matrices=False):
 
     # Perform the DFT-in-DFT embedding
     # Modify Fock matrix
-    def get_veff_emb(*args):
-        vh = scfres2.get_veff(*args)
-        vxc = vh.copy()
-        exc = vh.exc
-        ecoul = vh.ecoul
-        vj = vh.vj
-        vk = vh.vk
-        vxc += fock_emb_t + fock_emb_xc + v_coulomb + vAnucB
-        vxc = lib.tag_array(vxc, ecoul=ecoul, exc=exc, vj=vj, vk=vk)
-        return vxc
+    focka_ref = scfres2.get_hcore()
+    focka = focka_ref.copy()
+    focka += fock_emb_t + fock_emb_xc + v_coulomb + vAnucB
     scfres3 = dft.RKS(co)
     scfres3.xc = 'LDA,VWN'
     scfres3.conv_tol = 1e-12
-    scfres3.get_veff = get_veff_emb
+    scfres3.get_hcore = lambda *args: focka
 
     # Re-evaluate the energy
     scfres3.kernel()
@@ -569,10 +562,10 @@ def run_co_h2o_pyscf_dft_qz():
 
 
 if __name__ == "__main__":
-    run_co_h2o_pyscf_sto3g()
-    run_co_h2o_pyscf_dz()
-    run_co_h2o_pyscf_tz()
-    run_co_h2o_pyscf_qz()
+#   run_co_h2o_pyscf_sto3g()
+#   run_co_h2o_pyscf_dz()
+#   run_co_h2o_pyscf_tz()
+#   run_co_h2o_pyscf_qz()
     run_co_h2o_pyscf_dft_sto3g()
     run_co_h2o_pyscf_dft_dz()
     run_co_h2o_pyscf_dft_tz()

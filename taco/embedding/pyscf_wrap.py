@@ -1,17 +1,18 @@
 """PySCF Utilities for Embedding calculations."""
 
 import numpy as np
+import qcelemental as qcel
 from pyscf import gto
 from pyscf.dft import libxc, gen_grid
 from pyscf.dft.numint import eval_ao, eval_rho, eval_mat
-from taco.embedding.wrap import QCWrap
-from taco.methods.pyscf.hf import HFPySCF
-from taco.methods.pyscf.dft import DFTPySCF
+
+from taco.embedding.qc_wrap import QcWrap
+from taco.methods.scf_pyscf import ScfPyScf
 
 
 def get_charges_and_coords(mol):
     """Return arrays with charges and coordinates."""
-    bohr2a = 0.52917721067
+    bohr2a = qcel.constants.conversion_factor("bohr", "angstrom")
     coords = []
     charges = []
     atm_str = mol.atom.split()
@@ -119,7 +120,7 @@ def compute_nad_terms(mol0, mol1, dm0, dm1, emb_args):
 
     """
     # Create supersystem
-    newatom = '\n'.join([mol0.atom,mol1.atom])
+    newatom = '\n'.join([mol0.atom, mol1.atom])
     system = gto.M(atom=newatom, basis=mol0.basis)
     # Construct grid for complex
     grids = gen_grid.Grids(system)
@@ -178,7 +179,6 @@ def compute_nuclear_repulsion(mol1, mol2):
 
 def get_pyscf_method(args):
     """Create PySCF method object.
-
     Parameters
     ----------
     args : dict
@@ -192,22 +192,11 @@ def get_pyscf_method(args):
             Basis set name. Any of the PySCF basis sets.
         xc_code : str
             Density functional code, only needed for DFT methods.
-
     """
-    if args["method"].lower() == 'dft':
-        if 'xc_code' not in args:
-            raise KeyError('DFT functional not specified.')
-        else:
-            method = DFTPySCF(args["mol"], args["basis"],
-                              args["xc_code"])
-    elif args["method"].lower() == 'hf':
-        method = HFPySCF(args["mol"], args["basis"])
-    else:
-        raise NotImplementedError
-    return method
+    return ScfPyScf(args['mol'], args['basis'], args['method'], args['xc_code'])
 
 
-class PySCFWrap(QCWrap):
+class PyScfWrap(QcWrap):
     """PySCF wrapper for embedding calculations.
 
     Attributes
@@ -245,7 +234,7 @@ class PySCFWrap(QCWrap):
             method, basis, x_func, c_func, t_func.
 
         """
-        QCWrap.__init__(self, frag0_args, frag1_args, emb_args)
+        QcWrap.__init__(self, frag0_args, frag1_args, emb_args)
         self.create_fragments(frag0_args, frag1_args)
         self.check_emb_arguments(emb_args)
         self.emb_method = get_pyscf_method(emb_args)
@@ -299,8 +288,8 @@ class PySCFWrap(QCWrap):
         """Run FDET embedding calculation."""
         vemb = self.compute_embedding_potential()
         # Add embedding potential to Fock matrix and run SCF
-        self.emb_method.perturbe_fock(vemb)
-        self.emb_method.solve(conv_tol=1e-14)
+        self.emb_method.perturb_fock(vemb)
+        self.emb_method.solve_scf(conv_tol=1e-14)
         # Save final values
         self.save_info()
 
@@ -322,7 +311,7 @@ class PySCFWrap(QCWrap):
         # Get non-additive information
         # Final density functionals
         final_vnad = compute_nad_terms(self.emb_method.mol_pyscf, self.mol1, dm0_final,
-                                            dm1, self.emb_args)
+                                       dm1, self.emb_args)
         self.energy_dict["exc_nad_final"] = final_vnad[0]
         self.energy_dict["et_nad_final"] = final_vnad[1]
         self.vemb_dict["v_nad_xc_final"] = final_vnad[2]

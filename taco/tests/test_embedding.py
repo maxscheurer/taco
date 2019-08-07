@@ -7,24 +7,24 @@ import pandas
 import numpy as np
 from qcelemental.models import Molecule
 
-from taco.embedding.wrap import QCWrap
-from taco.embedding.pyscf_wrap import PySCFWrap
+from taco.embedding.qc_wrap import QcWrap
+from taco.embedding.pyscf_wrap import PyScfWrap
 from taco.testdata.cache import cache
 
 
 def test_qcwrap():
-    """Test base QCWrap class."""
+    """Test base QcWrap class."""
     args0 = 'mol'
     args1 = 'mol'
     emb_args = 'mol'
     dict0 = {'mol': 0}
     with pytest.raises(TypeError):
-        QCWrap(args0, args1, emb_args)
+        QcWrap(args0, args1, emb_args)
     with pytest.raises(TypeError):
-        QCWrap(dict0, args1, emb_args)
+        QcWrap(dict0, args1, emb_args)
     with pytest.raises(TypeError):
-        QCWrap(dict0, dict0, emb_args)
-    wrap = QCWrap(dict0, dict0, dict0)
+        QcWrap(dict0, dict0, emb_args)
+    wrap = QcWrap(dict0, dict0, dict0)
     with pytest.raises(NotImplementedError):
         wrap.create_fragments(dict0, dict0)
     with pytest.raises(NotImplementedError):
@@ -53,7 +53,7 @@ def test_qcwrap():
 
 
 def test_pyscf_wrap0():
-    """Test basic functionality of PySCFWrap."""
+    """Test basic functionality of PyScfWrap."""
     mol = Molecule.from_data("""He 0 0 0""")
     basis = 'sto-3g'
     dict0 = {'mol': 0}
@@ -63,20 +63,20 @@ def test_pyscf_wrap0():
     embs1 = {"mol": mol, "basis": basis, "method": 'hf',
              "xc_code": 'LDA,VWN', "t_code": 'XC_LDA_K_TF'}
     with pytest.raises(KeyError):
-        PySCFWrap(dict0, embs0, embs1)
+        PyScfWrap(dict0, embs0, embs1)
     with pytest.raises(KeyError):
-        PySCFWrap(embs0, dict0, embs1)
+        PyScfWrap(embs0, dict0, embs1)
+    with pytest.raises(ValueError):
+        PyScfWrap(embs0, args1, embs1)
     with pytest.raises(KeyError):
-        PySCFWrap(embs0, args1, embs1)
-    with pytest.raises(KeyError):
-        PySCFWrap(embs0, embs0, embs0)
+        PyScfWrap(embs0, embs0, embs0)
     with pytest.raises(NotImplementedError):
-        PySCFWrap(args0, embs0, embs1)
+        PyScfWrap(args0, embs0, embs1)
 
 
 def test_pyscf_wrap_hf_co_h2o_sto3g():
     """Test embedded HF-in-HF case."""
-    # Compared with QChem results
+    # Compared with QcWrap results
     co = Molecule.from_data("""C        -3.6180905689    1.3768035675   -0.0207958979
                                O        -4.7356838533    1.5255563000    0.1150239130""")
     h2o = Molecule.from_data("""O  -7.9563726699    1.4854060709    0.1167920007
@@ -88,7 +88,7 @@ def test_pyscf_wrap_hf_co_h2o_sto3g():
     args1 = {"mol": h2o, "basis": basis, "method": method}
     embs = {"mol": co, "basis": basis, "method": 'hf',
             "xc_code": 'LDA,VWN', "t_code": 'XC_LDA_K_TF'}
-    wrap = PySCFWrap(args0, args1, embs)
+    wrap = PyScfWrap(args0, args1, embs)
     vemb = wrap.compute_embedding_potential()
     nao_co = 10
     nao_h2o = 7
@@ -152,7 +152,7 @@ def test_pyscf_wrap_dft_co_h2o_sto3g():
     args1 = {"mol": h2o, "basis": basis, "method": method, "xc_code": xc_code}
     embs = {"mol": co, "basis": basis, "method": 'dft',
             "xc_code": 'LDA,VWN', "t_code": 'XC_LDA_K_TF'}
-    wrap = PySCFWrap(args0, args1, embs)
+    wrap = PyScfWrap(args0, args1, embs)
     wrap.run_embedding()
     embdic = wrap.energy_dict
     # Read reference
