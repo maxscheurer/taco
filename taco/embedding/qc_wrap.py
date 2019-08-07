@@ -64,7 +64,7 @@ class QcWrap():
 
     @staticmethod
     def check_basic_arguments(args):
-        if not 'mol' not in args:
+        if 'mol' not in args:
             raise KeyError("Missing to specify `molecule`.")
         if 'method' not in args:
             raise KeyError("Missing to specify `method`.")

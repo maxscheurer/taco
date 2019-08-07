@@ -70,7 +70,7 @@ def test_pyscf_wrap0():
         PyScfWrap(embs0, args1, embs1)
     with pytest.raises(KeyError):
         PyScfWrap(embs0, embs0, embs0)
-    with pytest.raises(NotImplementedError):
+    with pytest.raises(ValueError):
         PyScfWrap(args0, embs0, embs1)
 
 

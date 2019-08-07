@@ -32,20 +32,20 @@ def test_pyscf_base():
     basis = 0
     basis2 = 'sto-3g'
     method0 = 'adc'
-    method2= 'hf'
-    method3= 'dft'
+    method2 = 'hf'
+    method3 = 'dft'
     with pytest.raises(TypeError):
         hf = ScfPyScf(mol, basis, method2)
-    with pytest.raises(NotImplementedError):
+    with pytest.raises(ValueError):
         hf = ScfPyScf(mol2, basis2, method0)
         hf.perturb_fock(basis)
     with pytest.raises(TypeError):
         hf = ScfPyScf(mol2, basis2, method2)
         hf.perturb_fock(basis)
     with pytest.raises(ValueError):
-        dft = ScfPyScf(mol2, basis2, method3)
+        ScfPyScf(mol2, basis2, method3)
     with pytest.raises(NotImplementedError):
-        hf = ScfPyScf(mol, basis2, method2)
+        ScfPyScf(mol, basis2, method2)
 
 
 def test_hf_co_sto3g():
