@@ -111,13 +111,13 @@ class QCWrap():
             Default prints only on the screen.
         """
         # Print Energy Table
-        line = '='*40
+        line = '='*50
         print(line)
-        print("{:<40}".format("FDET Results"))
+        print("{:<50}".format("FDET Results"))
         print(line)
         for label in self.energy_dict:
             num = self.energy_dict[label]
-            print("{:<25} {:>14}".format(label, num))
+            print("{:<30} {:>16.12f}".format(label, num))
         if to_csv:
             from pandas import DataFrame
             columns = list(self.energy_dict)
