@@ -39,6 +39,8 @@ install:
   - conda activate test
     # install pyscf
   - pip install pyscf
+    # install pyscf
+  - pip install qcelemental
     # Build and install package
   - python setup.py develop --no-deps
 
