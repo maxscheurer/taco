@@ -1,5 +1,7 @@
 """ The Base Class for Wrappers. """
 
+import numpy as np
+
 
 class QCWrap():
     """Base class for Quantum Chemistry Packages.
@@ -39,6 +41,12 @@ class QCWrap():
             method, basis, x_func, c_func, t_func.
 
         """
+        if not isinstance(frag0_args, dict):
+            raise TypeError("Fragment 0 arguments must be provided as a dictionary.")
+        if not isinstance(frag1_args, dict):
+            raise TypeError("Fragment 1 arguments must be provided as a dictionary.")
+        if not isinstance(emb_args, dict):
+            raise TypeError("Arguments for the embedding calculation must be provided as a dictionary.")
         self.energy_dict = {}
         self.vemb_dict = {}
         self.emb_args = emb_args
@@ -46,6 +54,22 @@ class QCWrap():
         self.mol1 = None
         self.mmethod0 = None
         self.mmethod1 = None
+
+    def check_emb_arguments(self, args):
+        self.check_basic_arguments(args)
+        if not 'xc_code' in args:
+            raise KeyError("Missing to specify `xc_code` in emb_args.")
+        if not 't_code' in args:
+            raise KeyError("Missing to specify `t_code` in emb_args.")
+
+    @staticmethod
+    def check_basic_arguments(args):
+        if not 'mol' in args:
+            raise KeyError("Missing to specify `molecule`.")
+        if not 'method' in args:
+            raise KeyError("Missing to specify `method`.")
+        if not 'basis' in args:
+            raise KeyError("Missing to specify `basis`.")
 
     def create_fragments(self, frag0_args, frag1_args):
         """Save fragment information.
@@ -73,6 +97,10 @@ class QCWrap():
         """Run FDET embedding calculation."""
         raise NotImplementedError
 
+    def save_info(self):
+        """Save information after embedding calculation."""
+        raise NotImplementedError
+
     def print_embedding_information(self, to_csv=False):
         """Print all the results from the calculation.
 
@@ -82,8 +110,21 @@ class QCWrap():
             Whether to save the information on a file or not.
             Default prints only on the screen.
         """
-        raise NotImplementedError
+        # Print Energy Table
+        line = '='*40
+        print(line)
+        print("{:<40}".format("FDET Results"))
+        print(line)
+        for label in self.energy_dict:
+            num = self.energy_dict[label]
+            print("{:<25} {:>14}".format(label, num))
+        if to_csv:
+            from pandas import DataFrame
+            columns = list(self.energy_dict)
+            df = DataFrame(self.energy_dict, columns=columns, index=[0])
+            df.to_csv("embedding_energies.csv", header=True, index=None)
 
     def export_matrices(self):
         """Save all matrices into files."""
-        raise NotImplementedError
+        for element in self.vemb_dict:
+            np.savetxt(element+".txt", self.vemb_dict[element])

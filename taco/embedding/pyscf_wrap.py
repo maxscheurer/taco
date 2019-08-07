@@ -1,7 +1,8 @@
 """PySCF Utilities for Embedding calculations."""
 
 import numpy as np
-from pyscf import libxc, gen_grid, gto
+from pyscf import gto
+from pyscf.dft import libxc, gen_grid
 from pyscf.dft.numint import eval_ao, eval_rho, eval_mat
 from taco.embedding.wrap import QCWrap
 from taco.methods.pyscf.hf import HFPySCF
@@ -118,7 +119,8 @@ def compute_nad_terms(mol0, mol1, dm0, dm1, emb_args):
 
     """
     # Create supersystem
-    system = gto.M(atom=mol0.atom + mol1.atom)
+    newatom = '\n'.join([mol0.atom,mol1.atom])
+    system = gto.M(atom=newatom, basis=mol0.basis)
     # Construct grid for complex
     grids = gen_grid.Grids(system)
     grids.level = 4
@@ -169,7 +171,7 @@ def compute_nuclear_repulsion(mol1, mol2):
     charges2, coord2 = get_charges_and_coords(mol2)
     for i, q1 in enumerate(charges1):
         for j, q2 in enumerate(charges2):
-            d = np.linalg.norm(coord1-coord2)
+            d = np.linalg.norm(coord1[i]-coord2[j])
             result += q1*q2/d
     return result
 
@@ -194,12 +196,12 @@ def get_pyscf_method(args):
     """
     if args["method"].lower() == 'dft':
         if 'xc_code' not in args:
-            raise ValueError('DFT functional not specified.')
+            raise KeyError('DFT functional not specified.')
         else:
-            method = DFTPySCF(args["mol"], args["method"], args["basis"],
+            method = DFTPySCF(args["mol"], args["basis"],
                               args["xc_code"])
     elif args["method"].lower() == 'hf':
-        method = HFPySCF(args["mol"], args["method"], args["basis"])
+        method = HFPySCF(args["mol"], args["basis"])
     else:
         raise NotImplementedError
     return method
@@ -237,14 +239,15 @@ class PySCFWrap(QCWrap):
         ----------
         frag_args : dict
             Parameters for individual fragments:
-            molecule, method, basis.
+            molecule, method, basis, xc_code, etc.
         emb_args : dict
             Parameters for the embedding calculation:
             method, basis, x_func, c_func, t_func.
 
         """
-        QCWrap.__init__(self, frag0_args, frag1_args)
+        QCWrap.__init__(self, frag0_args, frag1_args, emb_args)
         self.create_fragments(frag0_args, frag1_args)
+        self.check_emb_arguments(emb_args)
         self.emb_method = get_pyscf_method(emb_args)
 
     def create_fragments(self, frag0_args, frag1_args):
@@ -256,6 +259,8 @@ class PySCFWrap(QCWrap):
             Parameters for individual fragments:
             molecule, method, basis.
         """
+        self.check_basic_arguments(frag0_args)
+        self.check_basic_arguments(frag1_args)
         self.method0 = get_pyscf_method(frag0_args)
         self.method1 = get_pyscf_method(frag1_args)
         self.mol0 = self.method0.mol_pyscf
@@ -274,7 +279,7 @@ class PySCFWrap(QCWrap):
         dm0 = self.method0.get_density()
         dm1 = self.method1.get_density()
         # Get DFT non-additive terms
-        ref_vnad = self.compute_nad_terms(self.mol0, self.mol1, dm0, dm1, self.emb_args)
+        ref_vnad = compute_nad_terms(self.mol0, self.mol1, dm0, dm1, self.emb_args)
         exc_nad, et_nad, v_nad_xc, v_nad_t = ref_vnad
         self.energy_dict["exc_nad"] = exc_nad
         self.energy_dict["et_nad"] = et_nad
@@ -282,7 +287,7 @@ class PySCFWrap(QCWrap):
         v_coulomb = get_coulomb(self.mol0, self.mol1, dm1)
         # Nuclear-electron integrals
         v0_nuc1, v1_nuc0 = get_attraction_potential(self.mol0, self.mol1)
-        vemb = v_coulomb + v_nad_xc + v_nad_xc + v0_nuc1
+        vemb = v_coulomb + v_nad_xc + v_nad_t + v0_nuc1
         self.vemb_dict["v_coulomb"] = v_coulomb
         self.vemb_dict["v_nad_t"] = v_nad_t
         self.vemb_dict["v_nad_xc"] = v_nad_xc
@@ -295,7 +300,7 @@ class PySCFWrap(QCWrap):
         vemb = self.compute_embedding_potential()
         # Add embedding potential to Fock matrix and run SCF
         self.emb_method.perturbe_fock(vemb)
-        self.emb_method.solve()
+        self.emb_method.solve(conv_tol=1e-14)
         # Save final values
         self.save_info()
 
@@ -310,13 +315,13 @@ class PySCFWrap(QCWrap):
         self.vemb_dict["dm0_final"] = dm0_final
 
         # Get electrostatics
-        self.energy_dict["rho0_rho1"] = np.einsum('ab,ba', self.vemb["v_coulomb"], dm0_final)
-        self.energy_dict["nuc0_rho1"] = np.einsum('ab,ba', self.vemb["v0_nuc1"], dm0_final)
-        self.energy_dict["nuc1_rho0"] = np.einsum('ab,ba', self.vemb["v1_nuc0"], dm1)
+        self.energy_dict["rho0_rho1"] = np.einsum('ab,ba', self.vemb_dict["v_coulomb"], dm0_final)
+        self.energy_dict["nuc0_rho1"] = np.einsum('ab,ba', self.vemb_dict["v0_nuc1"], dm0_final)
+        self.energy_dict["nuc1_rho0"] = np.einsum('ab,ba', self.vemb_dict["v1_nuc0"], dm1)
         self.energy_dict["nuc0_nuc1"] = compute_nuclear_repulsion(self.mol0, self.mol1)
         # Get non-additive information
         # Final density functionals
-        final_vnad = self.compute_nad_terms(self.emb_method.mol_pyscf, self.mol1, dm0_final,
+        final_vnad = compute_nad_terms(self.emb_method.mol_pyscf, self.mol1, dm0_final,
                                             dm1, self.emb_args)
         self.energy_dict["exc_nad_final"] = final_vnad[0]
         self.energy_dict["et_nad_final"] = final_vnad[1]
@@ -327,38 +332,10 @@ class PySCFWrap(QCWrap):
         self.energy_dict["int_final_xc"] = np.einsum('ab,ba', self.vemb_dict["v_nad_xc_final"], dm0)
         self.energy_dict["int_final_t"] = np.einsum('ab,ba', self.vemb_dict["v_nad_t_final"], dm0)
         # Linearization terms
-        int_emb_xc = np.einsum('ab,ba', self.vemb["v_nad_xc"], dm0_final)
-        int_emb_t = np.einsum('ab,ba', self.vemb["v_nad_t"], dm0_final)
-        self.energy_dict["int_ref_xc", int_ref_xc]
-        self.energy_dict["int_ref_t", int_ref_t]
-        self.energy_dict["int_emb_xc", int_emb_xc]
-        self.energy_dict["int_emb_t", int_emb_t]
+        int_emb_xc = np.einsum('ab,ba', self.vemb_dict["v_nad_xc"], dm0_final)
+        int_emb_t = np.einsum('ab,ba', self.vemb_dict["v_nad_t"], dm0_final)
+        self.energy_dict["int_ref_xc"] = int_ref_xc
+        self.energy_dict["int_ref_t"] = int_ref_t
+        self.energy_dict["int_emb_xc"] = int_emb_xc
+        self.energy_dict["int_emb_t"] = int_emb_t
         self.energy_dict["deltalin"] = (int_emb_xc - int_ref_xc) + (int_emb_t - int_ref_t)
-
-    def print_embedding_information(self, to_csv=False):
-        """Print all the results from the calculation.
-
-        Parameters
-        ----------
-        to_csv : bool
-            Whether to save the information on a file or not.
-            Default prints only on the screen.
-        """
-        # Print Energy Table
-        line = '='*25
-        print(line)
-        print("{:<25}".format("FDET Results"))
-        print(line)
-        for k, v in self.energy_dict.iteritems():
-            label, num = v
-            print("{:<15} {:<10}".format(label, num))
-        if to_csv:
-            from pandas import DataFrame
-            columns = list(self.energy_dict)
-            df = DataFrame(self.energy_dict, columns=columns)
-            df.to_csv("embedding_energies.csv", indes=None, header=True)
-
-    def export_matrices(self):
-        """Save all matrices into files."""
-        for element in self.vemb_dict:
-            np.savetxt(element+".txt", self.vemb_dict[element])

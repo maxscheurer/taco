@@ -44,7 +44,7 @@ class SCFMethod():
             raise TypeError('Molecule object should be instance of qcelemental.models.Molecule')
         self.mol = mol
         self.new = True
-        self.density = None
+        self.density = []
         self.energy = {}
 
     @property
@@ -54,10 +54,10 @@ class SCFMethod():
 
     def get_density(self):
         """Return the DM(s)."""
-        if self.density.any():
+        if self.density != []:
             return self.density
         else:
-            self.solve()
+            self.solve(conv_tol=1e-12)
             return self.density
 
     def get_energy(self):
@@ -65,7 +65,7 @@ class SCFMethod():
         if self.energy.get("scf", 0):
             return self.energy["scf"]
         else:
-            self.solve()
+            self.solve(conv_tol=1e-12)
             return self.energy["scf"]
 
     def get_fock(self):

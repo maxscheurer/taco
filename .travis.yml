@@ -39,8 +39,10 @@ install:
   - conda activate test
     # install pyscf
   - pip install pyscf
-    # install pyscf
+    # install QCElemental
   - pip install qcelemental
+    # install pandas
+  - pip install pandas
     # Build and install package
   - python setup.py develop --no-deps
 

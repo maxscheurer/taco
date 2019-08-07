@@ -2,6 +2,8 @@
 DFT method using PySCF.
 """
 
+import numpy as np
+from copy import copy
 from pyscf import dft, lib
 from taco.methods.scf import SCFMethod
 from taco.methods.pyscf.util import get_pyscf_molecule
@@ -51,12 +53,19 @@ class DFTPySCF(SCFMethod):
             Density functional PySCF xc_code.
 
         """
+        if not isinstance(basis, str):
+            raise TypeError("Basis set name must be given as string.")
+        if not isinstance(xc_code, str):
+            raise TypeError("xc_code must be given as string.")
         SCFMethod.__init__(self, mol)
         self.mol_pyscf = get_pyscf_molecule(self.mol, basis)
         if self.restricted:
-            self.scf_object = dft.RKS(self.mol_pyscf, xc_code)
+            self.scf_object = dft.RKS(self.mol_pyscf)
+            self.scf_object.xc = xc_code
         else:
             raise NotImplementedError
+        # Keep a clean copy of the scf object for latter
+        self._scf_object = copy(self.scf_object)
 
     def perturbe_fock(self, pot):
         """Add an effective potential to the Fock matrix.
@@ -67,7 +76,10 @@ class DFTPySCF(SCFMethod):
             Effective potential in the form of a Fock matrix.
 
         """
-        scf_ref = self.scf_object
+        # Check potential type
+        if not isinstance(pot, np.ndarray):
+            raise TypeError("The potential should be given as np.ndarray.")
+        scf_ref = copy(self.scf_object)
 
         def get_veff(*args):
             vh = scf_ref.get_veff(*args)
@@ -81,6 +93,10 @@ class DFTPySCF(SCFMethod):
             return vxc
         # Override function
         self.scf_object.get_veff = get_veff
+
+    def restore_scf_object(self):
+        """Recover initial configuration."""
+        self.scf_object = copy(self._scf_object)
 
     def get_fock(self):
         """Return Fock matrix."""
@@ -107,6 +123,8 @@ class DFTPySCF(SCFMethod):
             envrionment.
 
         """
-        self.scf_object.kernel(**scfkwargs)
+        for attr in scfkwargs:
+            self.scf_object.attr = scfkwargs[attr]
+        self.scf_object.kernel()
         self.energy["scf"] = self.scf_object.e_tot
         self.density = self.scf_object.make_rdm1()

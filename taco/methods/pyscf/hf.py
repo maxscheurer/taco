@@ -2,6 +2,8 @@
 HF method using PySCF.
 """
 
+import numpy as np
+from copy import copy
 from pyscf import scf
 from taco.methods.scf import SCFMethod
 from taco.methods.pyscf.util import get_pyscf_molecule
@@ -57,6 +59,8 @@ class HFPySCF(SCFMethod):
             self.scf_object = scf.RHF(self.mol_pyscf)
         else:
             raise NotImplementedError
+        # Keep a clean copy of the scf object for latter
+        self._scf_object = copy(self.scf_object)
 
     def get_fock(self):
         """Return Fock matrix."""
@@ -71,10 +75,16 @@ class HFPySCF(SCFMethod):
             Effective potential in the form of a Fock matrix.
 
         """
+        if not isinstance(pot, np.ndarray):
+            raise TypeError("The potential should be given as np.ndarray.")
         ref = self.scf_object.get_hcore()
         pot += ref
         # Override function
         self.scf_object.get_hcore = lambda *args: pot
+
+    def restore_scf_object(self):
+        """Recover initial configuration."""
+        self.scf_object = copy(self._scf_object)
 
     def solve(self, **scfkwargs):
         """Perform SCF calculation.
@@ -97,6 +107,8 @@ class HFPySCF(SCFMethod):
             envrionment.
 
         """
-        self.scf_object.kernel(**scfkwargs)
+        for attr in scfkwargs:
+            self.scf_object.attr = scfkwargs[attr]
+        self.scf_object.kernel()
         self.energy["scf"] = self.scf_object.e_tot
         self.density = self.scf_object.make_rdm1()
