@@ -6,9 +6,12 @@ import pytest
 import pandas
 import numpy as np
 from qcelemental.models import Molecule
+from pyscf.dft import gen_grid
 
 from taco.embedding.qc_wrap import QcWrap
+from taco.embedding.qc_wrap_single import QcWrapSingle
 from taco.embedding.pyscf_wrap import PyScfWrap
+from taco.embedding.pyscf_wrap_single import PyScfWrapSingle, get_electrostatic_potentials
 from taco.testdata.cache import cache
 
 
@@ -179,8 +182,98 @@ def test_pyscf_wrap_dft_co_h2o_sto3g():
     assert abs(qchem_deltalin - embdic['deltalin']) < 1e-7
 
 
+def test_qcwrap_single():
+    """Test base QcWrap class."""
+    args0 = 'mol'
+    emb_args = 0.7
+    dict0 = {'mol': 0}
+
+    def fn0(r):
+        """Little dummy function."""
+        return np.power(r, 2)
+
+    with pytest.raises(TypeError):
+        QcWrapSingle(args0, dict0, fn0, dict0, dict0)
+    with pytest.raises(TypeError):
+        QcWrapSingle(dict0, args0, fn0, dict0, dict0)
+    with pytest.raises(TypeError):
+        QcWrapSingle(dict0, dict0, args0, dict0, dict0)
+    with pytest.raises(TypeError):
+        QcWrapSingle(dict0, dict0, fn0, emb_args, dict0)
+    with pytest.raises(TypeError):
+        QcWrapSingle(dict0, dict0, fn0, dict0, args0)
+    # Create the fake object and test base functions
+    wrap = QcWrapSingle(dict0, dict0, fn0, dict0, dict0)
+    with pytest.raises(NotImplementedError):
+        wrap.create_fragment(dict0)
+    with pytest.raises(NotImplementedError):
+        wrap.compute_embedding_potential()
+    with pytest.raises(NotImplementedError):
+        wrap.run_embedding()
+    with pytest.raises(NotImplementedError):
+        wrap.save_info()
+    # Test checking arguments
+    args0 = dict(basis='a', method='b', xc_code='c')
+    with pytest.raises(KeyError):
+        wrap.check_qc_arguments(args0)
+    args0 = dict(mol='a', method='b', xc_code='c')
+    with pytest.raises(KeyError):
+        wrap.check_qc_arguments(args0)
+    args0 = dict(mol=0.7, basis='a', xc_code='c')
+    with pytest.raises(KeyError):
+        wrap.check_qc_arguments(args0)
+    args0 = dict(mol=0.7, basis='a', method='c')
+    with pytest.raises(KeyError):
+        wrap.check_emb_arguments(args0)
+    args0 = dict(mol=0.7, basis='a', method='c', xc_code='d')
+    with pytest.raises(KeyError):
+        wrap.check_emb_arguments(args0)
+    charge_args = dict(charges_coords=7)
+    with pytest.raises(KeyError):
+        wrap.check_emb_arguments(charge_args)
+    charge_args = dict(charges=7)
+    with pytest.raises(KeyError):
+        wrap.check_emb_arguments(charge_args)
+
+
+def test_pyscf_wrap_single_co_h2o():
+    from taco.methods.scf_pyscf import get_pyscf_molecule
+    # Create real object and test the cheking functions
+    co = Molecule.from_data("""C        -3.6180905689    1.3768035675   -0.0207958979
+                               O        -4.7356838533    1.5255563000    0.1150239130""")
+    basis = 'sto-3g'
+    xc_code = 'LDA,VWN'
+    method = 'dft'
+    args0 = {"mol": co, "basis": basis, "method": method, "xc_code": xc_code}
+    embs = {"mol": co, "basis": basis, "method": 'dft',
+            "xc_code": 'LDA,VWN', "t_code": 'XC_LDA_K_TF'}
+    h2o_coords  = np.array([[-7.9563726699, 1.4854060709, 0.1167920007],
+                            [-6.9923165534, 1.4211335985, 0.1774706091],
+                            [-8.1058463545, 2.4422204631, 0.1115993752]])
+    h2o_charges = np.array([8., 1., 1.])
+    frag_charges = dict(charges=h2o_charges, charges_coords=h2o_coords)
+
+    def fn0(r):
+        """Little dummy function."""
+
+        return np.einsum('ab->a', r)
+
+    # Make molecule in pyscf
+    pyscfmol = get_pyscf_molecule(co, basis)
+    # Construct grid for integration
+    grids = gen_grid.Grids(pyscfmol)
+    grids.level = 4
+    grids.build()
+    grid_args = dict(points=grids.coords, weights=grids.weights)
+    wrap1 = PyScfWrapSingle(args0, frag_charges, fn0, grid_args, embs)
+    emb_pot = wrap1.compute_embedding_potential()
+    print("Embedding potential: \n", emb_pot)
+
+
 if __name__ == "__main__":
     test_qcwrap()
     test_pyscf_wrap0()
     test_pyscf_wrap_hf_co_h2o_sto3g()
     test_pyscf_wrap_dft_co_h2o_sto3g()
+    test_qcwrap_single()
+    test_pyscf_wrap_single_co_h2o()

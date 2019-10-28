@@ -1,10 +1,10 @@
-""" The Base Class for Wrappers. """
+"""The Base Class for Wrappers for single fragment case."""
 
 import numpy as np
 
 
-class QcWrap():
-    """Base class for Quantum Chemistry Packages.
+class QcWrapSingle():
+    """Base class for Quantum Chemistry Packages for single fragment option.
 
     Attributes
     ----------
@@ -12,15 +12,25 @@ class QcWrap():
         Container for energy results.
     vemb_dict :  dict
         Container for matrices involved in embedding calculation.
-    mol0, mol1 :
+    mol :
         Molecule objects.
-    method0, method1 :
+    method :
         Method objects.
+    dens1_func : callable
+        Function to calculate density of fragment 1 on grid.
+    charges1 : np.ndarray
+        Charges of fragment 1.
+    grid_args : dict
+        Parameters of integration grid:
+        points, weights
 
     Methods
     -------
-    __init__(self, frag0_args, frag1_args, emb_args)
-    create_fragments(self, frag0_args, frag1_args)
+    __init__(self, frag_args, dens_func, emb_args)
+    create_fragment(self, frag_args)
+    check_qc_arguments(args)
+    check_charge_arguments(args)
+    check_grid_argumets(arg)
     compute_embedding_potential(self)
     run_embedding(self)
     save_info(self)
@@ -28,7 +38,7 @@ class QcWrap():
     export_matrices(self)
 
     """
-    def __init__(self, frag0_args, frag1_args, emb_args):
+    def __init__(self, frag0_args, frag1_charges, dens1_func, grid_args, emb_args):
         """The wrapper for QC packages to perform FDET calculations.
 
         Parameters
@@ -36,6 +46,14 @@ class QcWrap():
         frag_args : dict
             Parameters for individual fragments:
             molecule, method, basis.
+        frag1_charges : dict
+            Parameters for fragment 1:
+            Nuclear/effective charges, charges_coords (both np.ndarray).
+        dens1_func :  callable
+            A function to evaluate the density of fragment 1 on a given grid.
+        grid_args : dict
+            Parameters of integration grid:
+            points, weights
         emb_args : dict
             Parameters for the embedding calculation:
             method, basis, x_func, c_func, t_func.
@@ -43,27 +61,31 @@ class QcWrap():
         """
         if not isinstance(frag0_args, dict):
             raise TypeError("Fragment 0 arguments must be provided as a dictionary.")
-        if not isinstance(frag1_args, dict):
-            raise TypeError("Fragment 1 arguments must be provided as a dictionary.")
+        if not isinstance(frag1_charges, dict):
+            raise TypeError("Fragment 1 charges must be provided as a dictionary.")
+        if not callable(dens1_func):
+            raise TypeError("`dens_func` must be a callable.")
+        if not isinstance(grid_args, dict):
+            raise TypeError("`grid_args` must be a dictionary with `charges` and `charges_coords`.")
         if not isinstance(emb_args, dict):
             raise TypeError("Arguments for the embedding calculation must be provided as a dictionary.")
         self.energy_dict = {}
         self.vemb_dict = {}
         self.emb_args = emb_args
-        self.mol0 = None
-        self.mol1 = None
-        self.method0 = None
-        self.method1 = None
+        self.mol = None
+        self.method = None
+        self.dens1_func = dens1_func
+        self.frag1_charges = frag1_charges
 
     def check_emb_arguments(self, args):
-        self.check_basic_arguments(args)
+        self.check_qc_arguments(args)
         if args['xc_code'] is None:
             raise KeyError("Missing to specify `xc_code` in emb_args.")
         if 't_code' not in args:
             raise KeyError("Missing to specify `t_code` in emb_args.")
 
     @staticmethod
-    def check_basic_arguments(args):
+    def check_qc_arguments(args):
         if 'mol' not in args:
             raise KeyError("Missing to specify `molecule`.")
         if 'method' not in args:
@@ -73,7 +95,27 @@ class QcWrap():
         if 'xc_code' not in args:
             args['xc_code'] = None
 
-    def create_fragments(self, frag0_args, frag1_args):
+    @staticmethod
+    def check_charge_arguments(args):
+        if 'charges' not in args:
+            raise KeyError("Missing to specify `charges`.")
+        else:
+            if not isinstance(args['charges'], np.ndarray):
+                raise TypeError('`charges` of fragment 1 should be given in a np.ndarray')
+        if 'charges_coords' not in args:
+            raise KeyError("Missing to specify `charges_coords`.")
+        else:
+            if not isinstance(args['charges_coords'], np.ndarray):
+                raise TypeError('`charges_coords` of fragment 1 should be given in a np.ndarray')
+
+    @staticmethod
+    def check_grid_arguments(args):
+        if 'points' not in args:
+            raise KeyError("Missing to specify `points`.")
+        if 'weights' not in args:
+            raise KeyError("Missing to specify `weights`.")
+
+    def create_fragment(self, frag_args):
         """Save fragment information.
 
         Parameters
