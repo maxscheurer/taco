@@ -6,8 +6,26 @@ from pyscf.dft.numint import eval_ao, eval_rho, eval_mat
 
 from taco.embedding.scf_wrap_single import ScfWrapSingle
 from taco.embedding.pyscf_wrap import get_pyscf_method, get_charges_and_coords
-from taco.embedding.pyscf_wrap import get_dft_grid_stuff
 from taco.embedding.cc_gridfns import coulomb_potential_grid, nuclear_attraction_energy
+
+
+def get_dft_grid_stuff(code, rho_both, rho1, rho2):
+    """Evaluate energy densities and potentials on a grid.
+
+    Parameters
+    ----------
+    code : str
+        String with density functional code for PySCF.
+    rho_both :  np.ndarray(npoints, dtype=float)
+        Total density evaluated on n grid points.
+    rho1, rho2 :  np.ndarray(npoints, dtype=float)
+        Density of each fragment evaluated on n grid points.
+
+    """
+    exc, vxc, fxc, kxc = libxc.eval_xc(code, rho_both)
+    exc2, vxc2, fxc2, kxc2 = libxc.eval_xc(code, rho1)
+    exc3, vxc3, fxc3, kxc3 = libxc.eval_xc(code, rho2)
+    return (exc, exc2, exc3), (vxc, vxc2, vxc3)
 
 
 def get_electrostatic_potentials(mol0, rho0, dens_func, frag1_charges, grid_args):

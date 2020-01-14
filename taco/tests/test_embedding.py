@@ -15,7 +15,7 @@ from taco.embedding.pyscf_wrap_single import PyScfWrapSingle, get_electrostatic_
 from taco.testdata.cache import cache
 
 
-def test_qcwrap():
+def test_scfwrap():
     """Test base ScfWrap class."""
     args0 = 'mol'
     args1 = 'mol'
@@ -182,7 +182,7 @@ def test_pyscf_wrap_dft_co_h2o_sto3g():
     assert abs(qchem_deltalin - embdic['deltalin']) < 1e-7
 
 
-def test_qcwrap_single():
+def test_scfwrap_single():
     """Test base ScfWrap class."""
     args0 = 'mol'
     emb_args = 0.7
@@ -271,9 +271,9 @@ def test_pyscf_wrap_single_co_h2o():
 
 
 if __name__ == "__main__":
-    test_qcwrap()
+    test_scfwrap()
     test_pyscf_wrap0()
     test_pyscf_wrap_hf_co_h2o_sto3g()
     test_pyscf_wrap_dft_co_h2o_sto3g()
-    test_qcwrap_single()
+    test_scfwrap_single()
     test_pyscf_wrap_single_co_h2o()

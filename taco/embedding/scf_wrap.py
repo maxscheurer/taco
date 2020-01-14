@@ -14,6 +14,8 @@ class ScfWrap():
         Container for matrices involved in embedding calculation.
     mol0, mol1 :
         Molecule objects.
+    main_mol : list
+        Basic information of the main fragment.
     method0, method1 :
         Method objects.
 
