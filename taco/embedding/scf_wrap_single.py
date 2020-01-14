@@ -3,7 +3,7 @@
 import numpy as np
 
 
-class QcWrapSingle():
+class ScfWrapSingle():
     """Base class for Quantum Chemistry Packages for single fragment option.
 
     Attributes

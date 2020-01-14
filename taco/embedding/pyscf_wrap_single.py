@@ -4,7 +4,7 @@ import numpy as np
 from pyscf.dft import libxc
 from pyscf.dft.numint import eval_ao, eval_rho, eval_mat
 
-from taco.embedding.qc_wrap_single import QcWrapSingle
+from taco.embedding.scf_wrap_single import ScfWrapSingle
 from taco.embedding.pyscf_wrap import get_pyscf_method, get_charges_and_coords
 from taco.embedding.pyscf_wrap import get_dft_grid_stuff
 from taco.embedding.cc_gridfns import coulomb_potential_grid, nuclear_attraction_energy
@@ -138,7 +138,7 @@ def compute_nuclear_repulsion(charges1, coords1, charges2, coords2):
     return result
 
 
-class PyScfWrapSingle(QcWrapSingle):
+class PyScfWrapSingle(ScfWrapSingle):
     """PySCF wrapper for embedding calculations.
 
     Attributes
@@ -181,7 +181,7 @@ class PyScfWrapSingle(QcWrapSingle):
             method, basis, x_func, c_func, t_func.
 
         """
-        QcWrapSingle.__init__(self, frag0_args, frag1_charges, dens1_func, grid_args, emb_args)
+        ScfWrapSingle.__init__(self, frag0_args, frag1_charges, dens1_func, grid_args, emb_args)
         self.create_fragment(frag0_args)
         self.check_charge_arguments(frag1_charges)
         self.check_grid_arguments(grid_args)

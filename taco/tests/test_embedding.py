@@ -8,26 +8,26 @@ import numpy as np
 from qcelemental.models import Molecule
 from pyscf.dft import gen_grid
 
-from taco.embedding.qc_wrap import QcWrap
-from taco.embedding.qc_wrap_single import QcWrapSingle
+from taco.embedding.scf_wrap import ScfWrap
+from taco.embedding.scf_wrap_single import ScfWrapSingle
 from taco.embedding.pyscf_wrap import PyScfWrap
 from taco.embedding.pyscf_wrap_single import PyScfWrapSingle, get_electrostatic_potentials
 from taco.testdata.cache import cache
 
 
 def test_qcwrap():
-    """Test base QcWrap class."""
+    """Test base ScfWrap class."""
     args0 = 'mol'
     args1 = 'mol'
     emb_args = 'mol'
     dict0 = {'mol': 0}
     with pytest.raises(TypeError):
-        QcWrap(args0, args1, emb_args)
+        ScfWrap(args0, args1, emb_args)
     with pytest.raises(TypeError):
-        QcWrap(dict0, args1, emb_args)
+        ScfWrap(dict0, args1, emb_args)
     with pytest.raises(TypeError):
-        QcWrap(dict0, dict0, emb_args)
-    wrap = QcWrap(dict0, dict0, dict0)
+        ScfWrap(dict0, dict0, emb_args)
+    wrap = ScfWrap(dict0, dict0, dict0)
     with pytest.raises(NotImplementedError):
         wrap.create_fragments(dict0, dict0)
     with pytest.raises(NotImplementedError):
@@ -79,7 +79,7 @@ def test_pyscf_wrap0():
 
 def test_pyscf_wrap_hf_co_h2o_sto3g():
     """Test embedded HF-in-HF case."""
-    # Compared with QcWrap results
+    # Compared with ScfWrap results
     co = Molecule.from_data("""C        -3.6180905689    1.3768035675   -0.0207958979
                                O        -4.7356838533    1.5255563000    0.1150239130""")
     h2o = Molecule.from_data("""O  -7.9563726699    1.4854060709    0.1167920007
@@ -183,7 +183,7 @@ def test_pyscf_wrap_dft_co_h2o_sto3g():
 
 
 def test_qcwrap_single():
-    """Test base QcWrap class."""
+    """Test base ScfWrap class."""
     args0 = 'mol'
     emb_args = 0.7
     dict0 = {'mol': 0}
@@ -193,17 +193,17 @@ def test_qcwrap_single():
         return np.power(r, 2)
 
     with pytest.raises(TypeError):
-        QcWrapSingle(args0, dict0, fn0, dict0, dict0)
+        ScfWrapSingle(args0, dict0, fn0, dict0, dict0)
     with pytest.raises(TypeError):
-        QcWrapSingle(dict0, args0, fn0, dict0, dict0)
+        ScfWrapSingle(dict0, args0, fn0, dict0, dict0)
     with pytest.raises(TypeError):
-        QcWrapSingle(dict0, dict0, args0, dict0, dict0)
+        ScfWrapSingle(dict0, dict0, args0, dict0, dict0)
     with pytest.raises(TypeError):
-        QcWrapSingle(dict0, dict0, fn0, emb_args, dict0)
+        ScfWrapSingle(dict0, dict0, fn0, emb_args, dict0)
     with pytest.raises(TypeError):
-        QcWrapSingle(dict0, dict0, fn0, dict0, args0)
+        ScfWrapSingle(dict0, dict0, fn0, dict0, args0)
     # Create the fake object and test base functions
-    wrap = QcWrapSingle(dict0, dict0, fn0, dict0, dict0)
+    wrap = ScfWrapSingle(dict0, dict0, fn0, dict0, dict0)
     with pytest.raises(NotImplementedError):
         wrap.create_fragment(dict0)
     with pytest.raises(NotImplementedError):

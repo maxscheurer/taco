@@ -3,8 +3,8 @@
 import numpy as np
 
 
-class QcWrap():
-    """Base class for Quantum Chemistry Packages.
+class ScfWrap():
+    """Base class for SCF from Quantum Chemistry Packages.
 
     Attributes
     ----------
@@ -29,7 +29,7 @@ class QcWrap():
 
     """
     def __init__(self, frag0_args, frag1_args, emb_args):
-        """The wrapper for QC packages to perform FDET calculations.
+        """The wrapper for SCF in QC packages to perform FDET calculations.
 
         Parameters
         ----------

@@ -6,7 +6,7 @@ from pyscf import gto
 from pyscf.dft import libxc, gen_grid
 from pyscf.dft.numint import eval_ao, eval_rho, eval_mat
 
-from taco.embedding.qc_wrap import QcWrap
+from taco.embedding.scf_wrap import ScfWrap
 from taco.methods.scf_pyscf import ScfPyScf
 
 
@@ -196,7 +196,7 @@ def get_pyscf_method(args):
     return ScfPyScf(args['mol'], args['basis'], args['method'], args['xc_code'])
 
 
-class PyScfWrap(QcWrap):
+class PyScfWrap(ScfWrap):
     """PySCF wrapper for embedding calculations.
 
     Attributes
@@ -234,7 +234,7 @@ class PyScfWrap(QcWrap):
             method, basis, x_func, c_func, t_func.
 
         """
-        QcWrap.__init__(self, frag0_args, frag1_args, emb_args)
+        ScfWrap.__init__(self, frag0_args, frag1_args, emb_args)
         self.create_fragments(frag0_args, frag1_args)
         self.check_emb_arguments(emb_args)
         self.emb_method = get_pyscf_method(emb_args)
