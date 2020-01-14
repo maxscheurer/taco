@@ -50,6 +50,12 @@ def _gen_fde_rhf_response(mf, vxc_emb, fxc_emb, mo_coeff=None, mo_occ=None,
         else:
             rho0, vxc, fxc = ni.cache_xc_kernel(mol, mf.grids, mf.xc,
                                                 [mo_coeff]*2, [mo_occ*.5]*2, spin=1)
+        # Add the embedding terms
+        if ni._xc_type(mf.xc) == 'LDA' :
+                vxc[0][:] += vxc_emb[0]
+                fxc[0][:] += fxc_emb[0]
+        else:
+            raise NotImplementedError('Only LDA case implemented.')
 
         dm0 = None # mf.make_rdm1(mo_coeff, mo_occ)
 
@@ -79,10 +85,16 @@ def _gen_fde_rhf_response(mf, vxc_emb, fxc_emb, mo_coeff=None, mo_occ=None,
                 return v1
 
         elif singlet:
+            print("Singlet!")
             def vind(dm1):
+                print("dm0 shape:", dm0.shape)
+                print("dm1 shape:", dm1.shape)
+                print("dm0 fist:", dm0[0, 0])
+                print("dm1 fist:", dm1[0, 0])
                 if hermi == 2:
                     v1 = numpy.zeros_like(dm1)
                 else:
+                    print("hermi != 2")
                     # nr_rks_fxc_st requires alpha of dm1, dm1*.5 should be scaled
                     v1 = numint.nr_rks_fxc_st(ni, mol, mf.grids, mf.xc, dm0, dm1, 0,
                                               True, rho0, vxc, fxc,
@@ -282,11 +294,11 @@ def gen_tdhf_operation(mf, vxc_emb, fxc_emb, fock_ao=None, singlet=True, wfnsym=
     return vind, hdiag
 
 
-class FDETDDFT(rks.TDHF):
+class FDETDDFT(rks.TDDFT):
     def __init__(self, mf, vxc_emb, fxc_emb):
         self.vxc_emb = vxc_emb
         self.fxc_emb = fxc_emb
-        rks.TDHF.__init__(self, mf)
+        rks.TDDFT.__init__(self, mf)
 
     @lib.with_doc(gen_tdhf_operation.__doc__)
     def gen_vind(self, mf):
