@@ -64,7 +64,7 @@ def test_pyscf_wrap0():
     args1 = {"mol": mol, "basis": basis, "method": 'dft'}
     embs0 = {"mol": mol, "basis": basis, "method": 'hf'}
     embs1 = {"mol": mol, "basis": basis, "method": 'hf',
-             "xc_code": 'LDA,VWN', "t_code": 'XC_LDA_K_TF'}
+             "xc_code": 'LDA,VWN', "t_code": 'LDA_K_TF,'}
     with pytest.raises(KeyError):
         PyScfWrap(dict0, embs0, embs1)
     with pytest.raises(KeyError):
@@ -90,7 +90,7 @@ def test_pyscf_wrap_hf_co_h2o_sto3g():
     args0 = {"mol": co, "basis": basis, "method": method}
     args1 = {"mol": h2o, "basis": basis, "method": method}
     embs = {"mol": co, "basis": basis, "method": 'hf',
-            "xc_code": 'LDA,VWN', "t_code": 'XC_LDA_K_TF'}
+            "xc_code": 'LDA,VWN', "t_code": 'LDA_K_TF,'}
     wrap = PyScfWrap(args0, args1, embs)
     vemb = wrap.compute_embedding_potential()
     nao_co = 10
@@ -154,7 +154,7 @@ def test_pyscf_wrap_dft_co_h2o_sto3g():
     args0 = {"mol": co, "basis": basis, "method": method, "xc_code": xc_code}
     args1 = {"mol": h2o, "basis": basis, "method": method, "xc_code": xc_code}
     embs = {"mol": co, "basis": basis, "method": 'dft',
-            "xc_code": 'LDA,VWN', "t_code": 'XC_LDA_K_TF'}
+            "xc_code": 'LDA,VWN', "t_code": 'LDA_K_TF,'}
     wrap = PyScfWrap(args0, args1, embs)
     wrap.run_embedding()
     embdic = wrap.energy_dict
@@ -246,7 +246,7 @@ def test_pyscf_wrap_single_co_h2o():
     method = 'dft'
     args0 = {"mol": co, "basis": basis, "method": method, "xc_code": xc_code}
     embs = {"mol": co, "basis": basis, "method": 'dft',
-            "xc_code": 'LDA,VWN', "t_code": 'XC_LDA_K_TF'}
+            "xc_code": 'LDA,VWN', "t_code": 'LDA_K_TF,'}
     h2o_coords  = np.array([[-7.9563726699, 1.4854060709, 0.1167920007],
                             [-6.9923165534, 1.4211335985, 0.1774706091],
                             [-8.1058463545, 2.4422204631, 0.1115993752]])
