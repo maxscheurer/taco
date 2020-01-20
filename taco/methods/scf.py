@@ -44,7 +44,7 @@ class ScfMethod():
             raise TypeError('Molecule object should be instance of qcelemental.models.Molecule')
         self.mol = mol
         self.new = True
-        self.density = []
+        self.density = None
         self.energy = {}
 
     @property
@@ -55,7 +55,7 @@ class ScfMethod():
     # TODO: probably replace with a @cached_property
     def get_density(self):
         """Return the DM(s)."""
-        if self.density != []:
+        if self.density is not None:
             return self.density
         else:
             self.solve_scf(conv_tol=1e-12)

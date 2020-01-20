@@ -7,84 +7,8 @@ from pyscf.dft import libxc, gen_grid
 from pyscf.dft.numint import eval_ao, eval_rho, eval_mat
 
 from taco.embedding.scf_wrap import ScfWrap
+from taco.embedding.pyscf_embpot import PyScfEmbPot, compute_nuclear_repulsion
 from taco.methods.scf_pyscf import ScfPyScf
-
-
-def get_charges_and_coords(mol):
-    """Return arrays with charges and coordinates."""
-    bohr2a = qcel.constants.conversion_factor("bohr", "angstrom")
-    coords = []
-    charges = []
-    atm_str = mol.atom.split()
-    for i in range(mol.natm):
-        tmp = [float(f)/bohr2a for f in atm_str[i*4+1:(i*4)+4]]
-        coords.append(tmp)
-        charges.append(mol._atm[i][0])
-    coords = np.array(coords)
-    charges = np.array(charges, dtype=int)
-    return charges, coords
-
-
-def get_coulomb(mol1, mol2, dm2):
-    """Compute Coulomb repulsion between fragments.
-
-    Parameters
-    ----------
-    mol1, mol2 : gto.M
-        Molecule PySCF objects.
-    dm2 : np.ndarray
-        Density matrix of fragment 2.
-    """
-    mol1234 = mol2 + mol2 + mol1 + mol1
-    shls_slice = (0, mol2.nbas,
-                  mol2.nbas, mol2.nbas+mol2.nbas,
-                  mol2.nbas+mol2.nbas, mol2.nbas+mol2.nbas+mol1.nbas,
-                  mol2.nbas+mol2.nbas+mol1.nbas, mol1234.nbas)
-    eris = mol1234.intor('int2e', shls_slice=shls_slice)
-    v_coulomb = np.einsum('ab,abcd->cd', dm2, eris)
-    return v_coulomb
-
-
-def get_attraction_potential(mol1, mol2):
-    """Compute nuclear attraction between fragments.
-
-    Parameters
-    ----------
-    mol1, mol2 : gto.M
-        Molecule PySCF objects.
-    """
-    # Nuclear-electron attraction integrals
-    mol1_charges, mol1_coords = get_charges_and_coords(mol1)
-    mol2_charges, mol2_coords = get_charges_and_coords(mol2)
-    vAnucB = 0
-    for i, q in enumerate(mol2_charges):
-        mol1.set_rinv_origin(mol2_coords[i])
-        vAnucB += mol1.intor('int1e_rinv') * -q
-
-    vBnucA = 0
-    for i, q in enumerate(mol1_charges):
-        mol2.set_rinv_origin(mol1_coords[i])
-        vBnucA += mol2.intor('int1e_rinv') * -q
-    return vAnucB, vBnucA
-
-
-def compute_nuclear_repulsion(mol1, mol2):
-    """Compute nuclear repulsion between two fragments.
-
-    Parameters
-    ----------
-    mol1, mol2 : gto.M
-        Molecule objects
-
-    """
-    result = 0
-    charges1, coord1 = get_charges_and_coords(mol1)
-    charges2, coord2 = get_charges_and_coords(mol2)
-    for i, q1 in enumerate(charges1):
-        for j, q2 in enumerate(charges2):
-            d = np.linalg.norm(coord1[i]-coord2[j])
-            result += q1*q2/d
-    return result
 
 
 def get_pyscf_method(args):
@@ -119,6 +43,8 @@ class PyScfWrap(ScfWrap):
         Molecule objects.
     method0, method1 :
         Method objects.
+    pot_object : EmbPot object
+        Embedding potential constructor.
 
     Methods
     -------
@@ -148,6 +74,7 @@ class PyScfWrap(ScfWrap):
         self.create_fragments(frag0_args, frag1_args)
         self.check_emb_arguments(emb_args)
         self.emb_method = get_pyscf_method(emb_args)
+        self.pot_object = None
 
     def create_fragments(self, frag0_args, frag1_args):
         """Save fragment information.
@@ -165,92 +92,6 @@ class PyScfWrap(ScfWrap):
         self.mol0 = self.method0.mol_pyscf
         self.mol1 = self.method1.mol_pyscf
 
-    @staticmethod
-    def get_dft_grid_stuff(code, rho_both, rho1, rho2):
-        """Evaluate energy densities and potentials on a grid.
-
-        Parameters
-        ----------
-        code : str
-            String with density functional code for PySCF.
-        rho_both :  np.ndarray(npoints, dtype=float)
-            Total density evaluated on n grid points.
-        rho1, rho2 :  np.ndarray(npoints, dtype=float)
-            Density of each fragment evaluated on n grid points.
-
-        """
-        exc, vxc, fxc, kxc = libxc.eval_xc(code, rho_both)
-        exc2, vxc2, fxc2, kxc2 = libxc.eval_xc(code, rho1)
-        exc3, vxc3, fxc3, kxc3 = libxc.eval_xc(code, rho2)
-        return (exc, exc2, exc3), (vxc, vxc2, vxc3)
-
-    @staticmethod
-    def get_nad_energy(grid, energies, rho_both, rho1, rho2):
-        """Calculate non-additive energy.
-
-        Parameters
-        ----------
-        grid : len_grids.grids
-            Integration grid object.
-        energies : list
-            List of individual energies: total, [fragment1, fragment2]
-        rho_both :  np.ndarray(npoints, dtype=float)
-            Total density evaluated on n grid points.
-        rho1, rho2 :  np.ndarray(npoints, dtype=float)
-            Density of each fragment evaluated on n grid points.
-
-        """
-        e_nad = np.dot(rho_both*grid.weights, energies[0])
-        e_nad -= np.dot(rho1*grid.weights, energies[1])
-        e_nad -= np.dot(rho2*grid.weights, energies[2])
-        return e_nad
-
-    def compute_nad_terms(self, mol0, mol1, dm0, dm1, emb_args):
-        """Compute the non-additive potentials and energies.
-
-        Parameters
-        ----------
-        mol : PySCF gto.M
-            Molecule objects.
-        emb_args : dict
-            Information of embedding calculation.
-
-        """
-        # Create supersystem
-        newatom = '\n'.join([mol0.atom, mol1.atom])
-        system = gto.M(atom=newatom, basis=mol0.basis)
-        # Construct grid for complex
-        grids = gen_grid.Grids(system)
-        grids.level = 4
-        grids.build()
-        ao_mol0 = eval_ao(mol0, grids.coords, deriv=0)
-        ao_mol1 = eval_ao(mol1, grids.coords, deriv=0)
-        # Make Complex DM
-        ao_both = eval_ao(system, grids.coords, deriv=0)
-        nao_mol0 = mol0.nao_nr()
-        nao_mol1 = mol1.nao_nr()
-        nao_tot = nao_mol0 + nao_mol1
-        dm_both = np.zeros((nao_tot, nao_tot))
-        dm_both[:nao_mol0, :nao_mol0] = dm0
-        dm_both[nao_mol0:, nao_mol0:] = dm1
-        # Compute DFT non-additive potential and energies
-        rho_mol0 = eval_rho(mol0, ao_mol0, dm0, xctype='LDA')
-        rho_mol1 = eval_rho(mol1, ao_mol1, dm1, xctype='LDA')
-        rho_both = eval_rho(system, ao_both, dm_both, xctype='LDA')
-        # Compute all densities on a grid
-        xc_code = emb_args["xc_code"]
-        t_code = emb_args["t_code"]
-        excs, vxcs = self.get_dft_grid_stuff(xc_code, rho_both, rho_mol0, rho_mol1)
-        ets, vts = self.get_dft_grid_stuff(t_code, rho_both, rho_mol0, rho_mol1)
-        vxc_emb = vxcs[0][0] - vxcs[1][0]
-        vt_emb = vts[0][0] - vts[1][0]
-        # Energy functionals:
-        exc_nad = self.get_nad_energy(grids, excs, rho_both, rho_mol0, rho_mol1)
-        et_nad = self.get_nad_energy(grids, ets, rho_both, rho_mol0, rho_mol1)
-        v_nad_xc = eval_mat(mol0, ao_mol0, grids.weights, rho_mol0, vxc_emb, xctype='LDA')
-        v_nad_t = eval_mat(mol0, ao_mol0, grids.weights, rho_mol0, vt_emb, xctype='LDA')
-        return (exc_nad, et_nad, v_nad_xc, v_nad_t)
-
     def compute_embedding_potential(self):
         """Compute embedding potential.
 
@@ -264,26 +105,19 @@ class PyScfWrap(ScfWrap):
         dm0 = self.method0.get_density()
         dm1 = self.method1.get_density()
         # Get DFT non-additive terms
-        ref_vnad = self.compute_nad_terms(self.mol0, self.mol1, dm0, dm1, self.emb_args)
-        exc_nad, et_nad, v_nad_xc, v_nad_t = ref_vnad
-        self.energy_dict["exc_nad"] = exc_nad
-        self.energy_dict["et_nad"] = et_nad
-        # Electrostatic part
-        v_coulomb = get_coulomb(self.mol0, self.mol1, dm1)
-        # Nuclear-electron integrals
-        v0_nuc1, v1_nuc0 = get_attraction_potential(self.mol0, self.mol1)
-        vemb = v_coulomb + v_nad_xc + v_nad_t + v0_nuc1
-        self.vemb_dict["v_coulomb"] = v_coulomb
-        self.vemb_dict["v_nad_t"] = v_nad_t
-        self.vemb_dict["v_nad_xc"] = v_nad_xc
-        self.vemb_dict["v0_nuc1"] = v0_nuc1
-        self.vemb_dict["v1_nuc0"] = v1_nuc0
+        self.pot_object = PyScfEmbPot(self.mol0, self.mol1, self.emb_args)
+        vemb = self.pot_object.compute_embedding_potential(dm0, dm1)
+        # Copy info into wrap dictionaries
+        for key in self.pot_object.vemb_dict:
+            if key.startswith("v"):
+                self.vemb_dict[key] = self.pot_object.vemb_dict[key]
+            elif key.startswith("e"):
+                self.energy_dict[key] = self.pot_object.vemb_dict[key]
         return vemb
 
     def run_embedding(self):
         """Run FDET embedding calculation."""
         vemb = self.compute_embedding_potential()
-        self.vemb_dict["vemb"] = vemb
         # Add embedding potential to Fock matrix and run SCF
         self.emb_method.perturb_fock(vemb)
         # TODO: pass convergence tolerance from outside
@@ -309,8 +143,8 @@ class PyScfWrap(ScfWrap):
         self.energy_dict["nuc0_nuc1"] = compute_nuclear_repulsion(self.mol0, self.mol1)
         # Get non-additive information
         # Final density functionals
-        final_vnad = self.compute_nad_terms(self.emb_method.mol_pyscf, self.mol1, dm0_final,
-                                            dm1, self.emb_args)
+        self.pot_object.assign_dm(0, dm0_final)
+        final_vnad = self.pot_object.compute_nad_potential()
         self.energy_dict["exc_nad_final"] = final_vnad[0]
         self.energy_dict["et_nad_final"] = final_vnad[1]
         self.vemb_dict["v_nad_xc_final"] = final_vnad[2]

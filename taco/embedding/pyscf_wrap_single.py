@@ -5,7 +5,8 @@ from pyscf.dft import libxc
 from pyscf.dft.numint import eval_ao, eval_rho, eval_mat
 
 from taco.embedding.scf_wrap_single import ScfWrapSingle
-from taco.embedding.pyscf_wrap import get_pyscf_method, get_charges_and_coords
+from taco.embedding.pyscf_wrap import get_pyscf_method
+from taco.embedding.pyscf_embpot import get_charges_and_coords
 from taco.embedding.cc_gridfns import coulomb_potential_grid, nuclear_attraction_energy
 
 

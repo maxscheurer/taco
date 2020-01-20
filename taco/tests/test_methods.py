@@ -21,7 +21,7 @@ def test_scfmethod():
         scf.get_fock()
         scf.perturb_fock(np.zeros((2, 2)))
         scf.solve_scf()
-    assert scf.density == []
+    assert scf.density == None
     assert scf.energy == {}
 
 

@@ -6,13 +6,110 @@ import pytest
 import pandas
 import numpy as np
 from qcelemental.models import Molecule
+from pyscf import gto
 from pyscf.dft import gen_grid
 
+from taco.embedding.embpot import EmbPotBase
+from taco.embedding.pyscf_embpot import PyScfEmbPot
 from taco.embedding.scf_wrap import ScfWrap
 from taco.embedding.scf_wrap_single import ScfWrapSingle
 from taco.embedding.pyscf_wrap import PyScfWrap
 from taco.embedding.pyscf_wrap_single import PyScfWrapSingle, get_electrostatic_potentials
+from taco.embedding.postscf_wrap import PostScfWrap
+from taco.embedding.omolcas_wrap import OpenMolcasWrap
 from taco.testdata.cache import cache
+
+
+def test_embpotbase():
+    """Test EmbPotBase class."""
+    mol0 = 'mol'
+    mol1 = 'mol'
+    emb_args = 'mol'
+    dict0 = {'mol': 0}
+    dict1 = {'xc_code': 0}
+    with pytest.raises(TypeError):
+        EmbPotBase(mol0, mol1, emb_args)
+    with pytest.raises(KeyError):
+        EmbPotBase(mol0, mol1, dict0)
+    with pytest.raises(KeyError):
+        EmbPotBase(mol0, mol1, dict1)
+    dict2 = {'xc_code': 0, 't_code' : 0}
+    # Check assign_dm
+    pot = EmbPotBase(mol0, mol1, dict2)
+    with pytest.raises(ValueError):
+        pot.assign_dm(2, 0)
+    with pytest.raises(TypeError):
+        pot.assign_dm(0, 0)
+    with pytest.raises(NotImplementedError):
+        pot.save_maininfo(mol0)
+    with pytest.raises(NotImplementedError):
+        pot.compute_coulomb_potential()
+    with pytest.raises(NotImplementedError):
+        pot.compute_attraction_potential()
+    with pytest.raises(NotImplementedError):
+        pot.compute_nad_potential()
+    with pytest.raises(NotImplementedError):
+        pot.compute_embedding_potential(0, 1)
+
+
+def test_pyscfembpot0():
+    """Basic Tests for PyScfEmbPot class."""
+    pyscfmol = gto.M(atom="""He  0.000   0.000   0.000""",
+                     basis='sto-3g')
+    mol0 = 'mol'
+    mol1 = 'mol'
+    args = 'mol'
+    dict0 = {'mol': 0}
+    dict1 = {'xc_code': 0}
+    with pytest.raises(TypeError):
+        PyScfEmbPot(mol0, mol1, args)
+    with pytest.raises(TypeError):
+        PyScfEmbPot(pyscfmol, mol1, args)
+    with pytest.raises(KeyError):
+        PyScfEmbPot(pyscfmol, pyscfmol, dict0)
+    with pytest.raises(KeyError):
+        PyScfEmbPot(pyscfmol, pyscfmol, dict1)
+    emb_args = {'xc_code': 0, 't_code' : 0}
+    # Check assign_dm
+    pot = PyScfEmbPot(pyscfmol, pyscfmol, emb_args)
+    with pytest.raises(AttributeError):
+        pot.compute_embedding_potential()
+    dm = np.ones((4,4))
+    with pytest.raises(AttributeError):
+        pot.compute_embedding_potential(dm0=dm)
+
+
+def test_pyscf_embpot_hf_co_h2o_sto3g():
+    """Test embedded HF-in-HF case."""
+    # Compared with ScfWrap results
+    basis = 'sto-3g'
+    co = gto.M(atom="""C        -3.6180905689    1.3768035675   -0.0207958979
+                       O        -4.7356838533    1.5255563000    0.1150239130""",
+               basis=basis)
+    h2o = gto.M(atom="""O  -7.9563726699    1.4854060709    0.1167920007
+                        H  -6.9923165534    1.4211335985    0.1774706091
+                        H  -8.1058463545    2.4422204631    0.1115993752""",
+                basis = basis)
+    nao_co = 10
+    nao_h2o = 7
+    ref_dma = 2*np.loadtxt(cache.files["co_h2o_sto3g_dma"]).reshape((nao_co, nao_co))
+    ref_dmb = 2*np.loadtxt(cache.files["co_h2o_sto3g_dmb"]).reshape((nao_h2o, nao_h2o))
+    embs = {"xc_code": 'LDA,VWN', "t_code": 'LDA_K_TF,'}
+    embpot = PyScfEmbPot(co, h2o, embs)
+    vemb = embpot.compute_embedding_potential(ref_dma, ref_dmb)
+    matdic = embpot.vemb_dict
+    # Read reference
+    ref_xc = np.loadtxt(cache.files["co_h2o_sto3g_vxc"]).reshape((nao_co, nao_co))
+    ref_t = np.loadtxt(cache.files["co_h2o_sto3g_vTs"]).reshape((nao_co, nao_co))
+    ref_vJ = np.loadtxt(cache.files["co_h2o_sto3g_vJ"]).reshape((nao_co, nao_co))
+    ref_vNuc0 = np.loadtxt(cache.files["co_h2o_sto3g_vNuc0"]).reshape((nao_co, nao_co))
+    ref_vNuc1 = np.loadtxt(cache.files["co_h2o_sto3g_vNuc1"]).reshape((nao_h2o, nao_h2o))
+    np.testing.assert_allclose(ref_xc, matdic['v_nad_xc'], atol=1e-7)
+    np.testing.assert_allclose(ref_t, matdic['v_nad_t'], atol=1e-7)
+    np.testing.assert_allclose(ref_vJ, matdic['v_coulomb'], atol=1e-7)
+    np.testing.assert_allclose(ref_vNuc0, matdic['v0_nuc1'], atol=1e-7)
+    np.testing.assert_allclose(ref_vNuc1, matdic['v1_nuc0'], atol=1e-7)
+    np.testing.assert_allclose(ref_vNuc0+ref_t+ref_xc+ref_vJ, vemb, atol=1e-7)
 
 
 def test_scfwrap():
@@ -270,10 +367,65 @@ def test_pyscf_wrap_single_co_h2o():
     print("Embedding potential: \n", emb_pot)
 
 
+def test_postscfwrap():
+    """Test base PostScfWrap class."""
+    pot0 = 'mol'
+    dict0 = {'mol': 0}
+    emb_args = {'xc_code': 0, 't_code' : 0}
+    emb_pot = EmbPotBase(dict0, dict0, emb_args)
+    with pytest.raises(TypeError):
+        PostScfWrap(pot0)
+    wrap = PostScfWrap(emb_pot)
+    with pytest.raises(NotImplementedError):
+        wrap.format_potential()
+    with pytest.raises(NotImplementedError):
+        wrap.get_density()
+    with pytest.raises(ValueError):
+        wrap.save_info()
+    # Test the printing and export files functions
+    # Print into file
+    cwd = os.getcwd()
+    wrap.energy_dict["nanana"] = 100.00
+    wrap.print_embedding_information(to_csv=True)
+    fname = os.path.join(cwd, 'postscf_embedding_energies.csv')
+    fread = pandas.read_csv(fname)
+    assert fread.columns == list(wrap.energy_dict)
+    os.remove(fname)
+    # Export file
+    nao_co = 10
+    ref_dm0 = np.loadtxt(cache.files["co_h2o_sto3g_dma"]).reshape((nao_co, nao_co))
+    wrap.dms_dict["dm0"] = ref_dm0
+    cwd = os.getcwd()
+    wrap.export_matrices()
+    fname = os.path.join(cwd, 'dm0.txt')
+    dm0 = np.loadtxt(fname)
+    np.testing.assert_allclose(ref_dm0, dm0, atol=1e-10)
+    os.remove(fname)
+
+
+def test_omolcas_wrap0():
+    # Compared with ScfWrap results
+    basis = 'cc-pvtz'
+    mol = gto.M(atom="""He  0.000   0.000   0.000""",
+                basis=basis)
+    emb_args = {"xc_code": 'LDA,VWN', "t_code": 'LDA_K_TF,'}
+    emb_pot = PyScfEmbPot(mol, mol, emb_args)
+    emb_pot.maininfo["inprog"] = "gaussian"
+    wrap = OpenMolcasWrap(emb_pot) 
+    with pytest.raises(KeyError):
+        wrap.format_potential()
+    wrap.emb_pot.maininfo["inprog"] = "pyscf"
+    with pytest.raises(KeyError):
+        wrap.format_potential()
+
+
 if __name__ == "__main__":
+    test_embpotbase()
     test_scfwrap()
     test_pyscf_wrap0()
     test_pyscf_wrap_hf_co_h2o_sto3g()
     test_pyscf_wrap_dft_co_h2o_sto3g()
     test_scfwrap_single()
     test_pyscf_wrap_single_co_h2o()
+    test_postscfwrap()
+    test_omolcas_wrap0()

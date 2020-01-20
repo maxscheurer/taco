@@ -4,6 +4,7 @@ import json
 import numpy as np
 
 from taco.embedding.postscf_wrap import PostScfWrap
+from taco.data.cache import data
 
 
 class OpenMolcasWrap(PostScfWrap):
@@ -22,29 +23,26 @@ class OpenMolcasWrap(PostScfWrap):
     -------
     __init__(self, scf_wrap)
     get_density(self)
-    translate_potential(self, filename)
+    format_potential(self, filename)
     write_input(self)
     save_info(self)
     print_embedding_information(self, to_csv)
     export_matrices(self)
 
     """
-    def __init__(self, scf_wrap):
+    def __init__(self, emb_pot):
         """The wrapper for SCF in QC packages to perform FDET calculations.
 
         Parameters
         ----------
-        frag_args : dict
-            Parameters for individual fragments:
-            molecule, method, basis.
-        emb_args : dict
+        emb_pot : dict
             Parameters for the embedding calculation:
             method, basis, x_func, c_func, t_func.
 
         """
-        PostScfWrap.__init__(self, scf_wrap)
+        PostScfWrap.__init__(self, emb_pot)
 
-    def translate_potential(self, filename=None):
+    def format_potential(self):
         """Reorder embedding potential to be used in OpenMolcas.
 
         Parameters
@@ -54,21 +52,21 @@ class OpenMolcasWrap(PostScfWrap):
 
         """
         # Get data from json file in data folder
-        jsonfn = os.path.join(datafolder, 'translation.json')
+        jsonfn = data.jfiles['translation']
         with open(jsonfn, 'r') as jf:
-            data = json.load(jf)
-        inprog = get_scf_program(self.scf_wrap)
+            formatdata = json.load(jf)
+        inprog = self.emb_pot.maininfo["inprog"]
+        basis = self.emb_pot.maininfo["basis"]
+        atoms = self.emb_pot.maininfo["atoms"]
+        natoms = len(atoms)
         transkey = inprog+'2molcas'
-        if not data[transkey]:
+        if not formatdata[transkey]:
             raise KeyError("No translation information available for %s SCF program." % inprog)
         # check that there is info for the basis requested
-        basis = self.scf_wrap.mol0.basis
-        atoms = self.scf_wrap.mol0.atom
-        natoms = len(atoms)
-        if not data[transkey][basis]:
+        if not formatdata[transkey][basis]:
             raise KeyError("The information for %s basis is missing." % basis)
-        orders = get_order_lists(atoms, data[transkey][basis])
-        vemb_copy = np.copy(self.scf_wrap.vemb_dict["vemb"])
+        orders = get_order_lists(atoms, formatdata[transkey][basis])
+        vemb_copy = self.emb_pot.compute_embedding_potential()
         ordered_vemb = transform(vemb_copy, natoms, orders)
         np.savetxt('vemb_ordered.txt', ordered_vemb, delimiter='\n')
         # OpenMolcas only reads triangular matrices
@@ -78,16 +76,32 @@ class OpenMolcasWrap(PostScfWrap):
 
     def write_input(self):
         """Write the input for OpenMolcas."""
-        return
+        raise NotImplementedError
 
-    def get_density(self):
+    def prepare_density_file(self):
+        """Prepare density to be read from OpenMolcas."""
+        raise NotImplementedError
+
+    def get_density(self, fname=None):
         """Read Post-SCF density from OpenMolcas.
 
         Returns
         -------
-        dms : list[np.ndarray,]
-            One-electron density matrices. Only alpha for restricted
+        dms : np.ndarray(NBas*(NBas+1)/2),
+            One-electron density (triangular) matrix. Only alpha for restricted
             case.
 
         """
-        raise NotImplementedError
+        if fname is None:
+            raise ValueError("Input filename of DM must be given.")
+        # Read from file
+        inp = np.loadtxt(fname)
+        nbas = self.emb_pot.maininfo["nbas"]
+        dm_inp = np.zeros(nbas*nbas)
+        dm_inp[:len(inp)] = inp[:]
+        # Re-shape into AO square matrix
+        dm_inp = dm_inp.reshape(nbas, nbas)
+        # From triangular to square matrix
+        dm_out = dm_inp.T + dm_inp
+        np.fill_diagonal(dm_out,np.diag(dm_inp))
+        return dm_out
