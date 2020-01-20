@@ -14,7 +14,7 @@ from taco.embedding.pyscf_embpot import PyScfEmbPot
 from taco.embedding.scf_wrap import ScfWrap
 from taco.embedding.scf_wrap_single import ScfWrapSingle
 from taco.embedding.pyscf_wrap import PyScfWrap
-from taco.embedding.pyscf_wrap_single import PyScfWrapSingle, get_electrostatic_potentials
+from taco.embedding.pyscf_wrap_single import PyScfWrapSingle
 from taco.embedding.postscf_wrap import PostScfWrap
 from taco.embedding.omolcas_wrap import OpenMolcasWrap
 from taco.testdata.cache import cache
@@ -33,7 +33,7 @@ def test_embpotbase():
         EmbPotBase(mol0, mol1, dict0)
     with pytest.raises(KeyError):
         EmbPotBase(mol0, mol1, dict1)
-    dict2 = {'xc_code': 0, 't_code' : 0}
+    dict2 = {'xc_code': 0, 't_code': 0}
     # Check assign_dm
     pot = EmbPotBase(mol0, mol1, dict2)
     with pytest.raises(ValueError):
@@ -69,12 +69,12 @@ def test_pyscfembpot0():
         PyScfEmbPot(pyscfmol, pyscfmol, dict0)
     with pytest.raises(KeyError):
         PyScfEmbPot(pyscfmol, pyscfmol, dict1)
-    emb_args = {'xc_code': 0, 't_code' : 0}
+    emb_args = {'xc_code': 0, 't_code': 0}
     # Check assign_dm
     pot = PyScfEmbPot(pyscfmol, pyscfmol, emb_args)
     with pytest.raises(AttributeError):
         pot.compute_embedding_potential()
-    dm = np.ones((4,4))
+    dm = np.ones((4, 4))
     with pytest.raises(AttributeError):
         pot.compute_embedding_potential(dm0=dm)
 
@@ -89,7 +89,7 @@ def test_pyscf_embpot_hf_co_h2o_sto3g():
     h2o = gto.M(atom="""O  -7.9563726699    1.4854060709    0.1167920007
                         H  -6.9923165534    1.4211335985    0.1774706091
                         H  -8.1058463545    2.4422204631    0.1115993752""",
-                basis = basis)
+                basis=basis)
     nao_co = 10
     nao_h2o = 7
     ref_dma = 2*np.loadtxt(cache.files["co_h2o_sto3g_dma"]).reshape((nao_co, nao_co))
@@ -344,9 +344,9 @@ def test_pyscf_wrap_single_co_h2o():
     args0 = {"mol": co, "basis": basis, "method": method, "xc_code": xc_code}
     embs = {"mol": co, "basis": basis, "method": 'dft',
             "xc_code": 'LDA,VWN', "t_code": 'LDA_K_TF,'}
-    h2o_coords  = np.array([[-7.9563726699, 1.4854060709, 0.1167920007],
-                            [-6.9923165534, 1.4211335985, 0.1774706091],
-                            [-8.1058463545, 2.4422204631, 0.1115993752]])
+    h2o_coords = np.array([[-7.9563726699, 1.4854060709, 0.1167920007],
+                           [-6.9923165534, 1.4211335985, 0.1774706091],
+                           [-8.1058463545, 2.4422204631, 0.1115993752]])
     h2o_charges = np.array([8., 1., 1.])
     frag_charges = dict(charges=h2o_charges, charges_coords=h2o_coords)
 
@@ -371,7 +371,7 @@ def test_postscfwrap():
     """Test base PostScfWrap class."""
     pot0 = 'mol'
     dict0 = {'mol': 0}
-    emb_args = {'xc_code': 0, 't_code' : 0}
+    emb_args = {'xc_code': 0, 't_code': 0}
     emb_pot = EmbPotBase(dict0, dict0, emb_args)
     with pytest.raises(TypeError):
         PostScfWrap(pot0)
@@ -403,6 +403,49 @@ def test_postscfwrap():
     os.remove(fname)
 
 
+def test_postscfwrap_co_h2o():
+    """Test energy and array part of the class."""
+    # Compared with ScfWrap results
+    co = Molecule.from_data("""C        -3.6180905689    1.3768035675   -0.0207958979
+                               O        -4.7356838533    1.5255563000    0.1150239130""")
+    h2o = Molecule.from_data("""O  -7.9563726699    1.4854060709    0.1167920007
+                                H  -6.9923165534    1.4211335985    0.1774706091
+                                H  -8.1058463545    2.4422204631    0.1115993752""")
+    basis = 'sto-3g'
+    method = 'hf'
+    args0 = {"mol": co, "basis": basis, "method": method}
+    args1 = {"mol": h2o, "basis": basis, "method": method}
+    embs = {"mol": co, "basis": basis, "method": 'hf',
+            "xc_code": 'LDA,VWN', "t_code": 'LDA_K_TF,'}
+    wrap = PyScfWrap(args0, args1, embs)
+    wrap.run_embedding()
+    emb_pot = wrap.pot_object
+    matdic = wrap.vemb_dict
+    embdic = wrap.energy_dict
+    postwrap = PostScfWrap(emb_pot)
+    postwrap.dms_dict["dm0_final"] = matdic["dm0_final"]
+    with pytest.raises(KeyError):
+        postwrap.save_info()
+    postwrap.emb_pot.vemb_dict["v_nad_xc_final"] = wrap.vemb_dict["v_nad_xc_final"]
+    with pytest.raises(KeyError):
+        postwrap.save_info()
+    postwrap.emb_pot.vemb_dict["v_nad_t_final"] = wrap.vemb_dict["v_nad_t_final"]
+    with pytest.raises(KeyError):
+        postwrap.save_info()
+    postwrap.emb_pot.vemb_dict["int_ref_xc"] = wrap.energy_dict["int_ref_xc"]
+    with pytest.raises(KeyError):
+        postwrap.save_info()
+    postwrap.emb_pot.vemb_dict["int_ref_t"] = wrap.energy_dict["int_ref_t"]
+    postwrap.save_info()
+    assert abs(postwrap.energy_dict['et_nad_final'] - embdic['et_nad_final']) < 1e-6
+    assert abs(postwrap.energy_dict['exc_nad_final'] - embdic['exc_nad_final']) < 1e-6
+    assert abs(postwrap.energy_dict['int_final_xc'] - embdic['int_emb_xc']) < 1e-6
+    assert abs(postwrap.energy_dict['int_final_t'] - embdic['int_emb_t']) < 1e-6
+    assert abs(postwrap.energy_dict['int_emb_xc'] - embdic['int_emb_xc']) < 1e-6
+    assert abs(postwrap.energy_dict['int_emb_t'] - embdic['int_emb_t']) < 1e-6
+    assert abs(postwrap.energy_dict['deltalin'] - embdic['deltalin']) < 1e-6
+
+
 def test_omolcas_wrap0():
     # Compared with ScfWrap results
     basis = 'cc-pvtz'
@@ -411,12 +454,17 @@ def test_omolcas_wrap0():
     emb_args = {"xc_code": 'LDA,VWN', "t_code": 'LDA_K_TF,'}
     emb_pot = PyScfEmbPot(mol, mol, emb_args)
     emb_pot.maininfo["inprog"] = "gaussian"
-    wrap = OpenMolcasWrap(emb_pot) 
+    wrap = OpenMolcasWrap(emb_pot)
     with pytest.raises(KeyError):
         wrap.format_potential()
     wrap.emb_pot.maininfo["inprog"] = "pyscf"
     with pytest.raises(KeyError):
         wrap.format_potential()
+    with pytest.raises(ValueError):
+        wrap.get_density()
+    fin_dm = np.loadtxt(cache.files["he_cc-pvtz_dm"])
+    read_dm = wrap.get_density(cache.files["he_cc-pvtz_dm_tri"])
+    np.testing.assert_allclose(fin_dm, read_dm, atol=1e-7)
 
 
 if __name__ == "__main__":
@@ -428,4 +476,5 @@ if __name__ == "__main__":
     test_scfwrap_single()
     test_pyscf_wrap_single_co_h2o()
     test_postscfwrap()
+    test_postscfwrap_co_h2o()
     test_omolcas_wrap0()

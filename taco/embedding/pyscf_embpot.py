@@ -142,7 +142,7 @@ class PyScfEmbPot(EmbPotBase):
         """Save in a dictionary basic information of mol0 in a simple format."""
         mol0_charges, mol0_coords = get_charges_and_coords(mol0)
         mol0_basis = mol0.basis
-        mol0_nbas = mol0.nbas
+        mol0_nbas = mol0.nao_nr()
         self.maininfo = dict(inprog="pyscf", atoms=mol0_charges, basis=mol0_basis,
                              nbas=mol0_nbas)
 

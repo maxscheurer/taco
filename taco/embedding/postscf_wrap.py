@@ -5,6 +5,10 @@ import numpy as np
 from taco.embedding.embpot import EmbPotBase
 
 
+def get_order_lists(atoms, basis_dict):
+    raise NotImplementedError
+
+
 class PostScfWrap():
     """Base class for Post-SCF from Quantum Chemistry Packages.
 
@@ -73,8 +77,7 @@ class PostScfWrap():
             raise ValueError("No information to be stored, DMs missing.")
         # Get densities from methods
         dm0_final = self.dms_dict["dm0_final"]
-        self.emb_pot.assign_dm(0, dm_final)
-        dm1 = self.emb_pot.vemb_dict["dm1_ref"]
+        self.emb_pot.assign_dm(0, dm0_final)
         # Get non-additive information
         # Final density functionals
         final_vnad = self.emb_pot.compute_nad_potential()
@@ -85,10 +88,21 @@ class PostScfWrap():
         self.energy_dict["int_final_xc"] = np.einsum('ab,ba', v_nad_xc_final, dm0_final)
         self.energy_dict["int_final_t"] = np.einsum('ab,ba', v_nad_t_final, dm0_final)
         # Linearization terms
+        if "v_nad_xc_final" not in self.emb_pot.vemb_dict:
+            raise KeyError("To save linearization terms the v_nad_xc_final needs to be added to the vemb_dict.")
+        if "v_nad_t_final" not in self.emb_pot.vemb_dict:
+            raise KeyError("To save linearization terms the v_nad_t_final needs to be added to the vemb_dict.")
+        if "int_ref_xc" not in self.emb_pot.vemb_dict:
+            raise KeyError("To save linearization terms the int_ref_xc needs to be added to the vemb_dict.")
+        if "int_ref_t" not in self.emb_pot.vemb_dict:
+            raise KeyError("To save linearization terms the int_ref_t needs to be added to the vemb_dict.")
         int_emb_xc = np.einsum('ab,ba', self.emb_pot.vemb_dict["v_nad_xc_final"], dm0_final)
         int_emb_t = np.einsum('ab,ba', self.emb_pot.vemb_dict["v_nad_t_final"], dm0_final)
+        int_ref_xc = self.emb_pot.vemb_dict["int_ref_xc"]
+        int_ref_t = self.emb_pot.vemb_dict["int_ref_t"]
         self.energy_dict["int_emb_xc"] = int_emb_xc
         self.energy_dict["int_emb_t"] = int_emb_t
+        self.energy_dict["deltalin"] = (int_emb_xc - int_ref_xc) + (int_emb_t - int_ref_t)
 
     def print_embedding_information(self, to_csv=False):
         """Print all the results from the calculation.

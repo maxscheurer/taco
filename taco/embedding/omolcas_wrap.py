@@ -3,7 +3,8 @@
 import json
 import numpy as np
 
-from taco.embedding.postscf_wrap import PostScfWrap
+from taco.embedding.postscf_wrap import PostScfWrap, get_order_lists
+from taco.translate.order import transform
 from taco.data.cache import data
 
 
@@ -71,7 +72,7 @@ class OpenMolcasWrap(PostScfWrap):
         np.savetxt('vemb_ordered.txt', ordered_vemb, delimiter='\n')
         # OpenMolcas only reads triangular matrices
         lotri = np.tril(ordered_vemb)
-        lt = lotri[np.where(abs(lotri - 0.0) > 1e-9)]
+        lt = lotri[np.where(lotri != 0.0)]
         np.savetxt('vemb_ordered_tri.txt', lt, delimiter='\n')
 
     def write_input(self):
@@ -96,12 +97,15 @@ class OpenMolcasWrap(PostScfWrap):
             raise ValueError("Input filename of DM must be given.")
         # Read from file
         inp = np.loadtxt(fname)
-        nbas = self.emb_pot.maininfo["nbas"]
-        dm_inp = np.zeros(nbas*nbas)
-        dm_inp[:len(inp)] = inp[:]
         # Re-shape into AO square matrix
-        dm_inp = dm_inp.reshape(nbas, nbas)
+        nbas = self.emb_pot.maininfo["nbas"]
+        dm_inp = np.zeros((nbas, nbas))
+        count = 0
+        for i in range(nbas):
+            j = i + 1
+            dm_inp[i, :j] = inp[count:count+j]
+            count += j
         # From triangular to square matrix
         dm_out = dm_inp.T + dm_inp
-        np.fill_diagonal(dm_out,np.diag(dm_inp))
+        np.fill_diagonal(dm_out, np.diag(dm_inp))
         return dm_out

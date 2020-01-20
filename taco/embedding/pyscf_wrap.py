@@ -1,11 +1,6 @@
 """PySCF Utilities for Embedding calculations."""
 
 import numpy as np
-import qcelemental as qcel
-from pyscf import gto
-from pyscf.dft import libxc, gen_grid
-from pyscf.dft.numint import eval_ao, eval_rho, eval_mat
-
 from taco.embedding.scf_wrap import ScfWrap
 from taco.embedding.pyscf_embpot import PyScfEmbPot, compute_nuclear_repulsion
 from taco.methods.scf_pyscf import ScfPyScf

@@ -1,10 +1,6 @@
 """PySCF Utilities for Embedding calculations."""
 
 import numpy as np
-import qcelemental as qcel
-from pyscf import gto
-from pyscf.dft import libxc, gen_grid
-from pyscf.dft.numint import eval_ao, eval_rho, eval_mat
 
 
 class EmbPotBase():
@@ -38,7 +34,7 @@ class EmbPotBase():
 
         Parameters
         ----------
-        mol0, mol1 : Depending on the program 
+        mol0, mol1 : Depending on the program
             Molecule objects.
         dm0, dm1 : np.ndarray(NAO,NAO)
             One-electron density matrices.
@@ -73,7 +69,7 @@ class EmbPotBase():
             to which fragment/molecule the DM corresponds.
 
         """
-        if not nfrag in [0, 1]:
+        if nfrag not in [0, 1]:
             raise ValueError("Only 0 or 1 are valid values for nfrag.")
         if not isinstance(dm, np.ndarray):
             raise TypeError("Density matrix must be a np.ndarray.")
