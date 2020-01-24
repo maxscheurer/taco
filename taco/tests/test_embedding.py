@@ -17,6 +17,7 @@ from taco.embedding.pyscf_wrap import PyScfWrap
 from taco.embedding.pyscf_wrap_single import PyScfWrapSingle
 from taco.embedding.postscf_wrap import PostScfWrap
 from taco.embedding.omolcas_wrap import OpenMolcasWrap
+from taco.translate.order import transform
 from taco.testdata.cache import cache
 
 
@@ -436,6 +437,9 @@ def test_postscfwrap_co_h2o():
     with pytest.raises(KeyError):
         postwrap.save_info()
     postwrap.emb_pot.vemb_dict["int_ref_t"] = wrap.energy_dict["int_ref_t"]
+    postwrap = PostScfWrap(emb_pot)
+    postwrap.dms_dict["dm0_final"] = matdic["dm0_final"]
+    postwrap.prepare_for_postscf(embdic, matdic)
     postwrap.save_info()
     assert abs(postwrap.energy_dict['et_nad_final'] - embdic['et_nad_final']) < 1e-6
     assert abs(postwrap.energy_dict['exc_nad_final'] - embdic['exc_nad_final']) < 1e-6
@@ -448,23 +452,105 @@ def test_postscfwrap_co_h2o():
 
 def test_omolcas_wrap0():
     # Compared with ScfWrap results
-    basis = 'cc-pvtz'
-    mol = gto.M(atom="""He  0.000   0.000   0.000""",
-                basis=basis)
-    emb_args = {"xc_code": 'LDA,VWN', "t_code": 'LDA_K_TF,'}
-    emb_pot = PyScfEmbPot(mol, mol, emb_args)
-    emb_pot.maininfo["inprog"] = "gaussian"
-    wrap = OpenMolcasWrap(emb_pot)
-    with pytest.raises(KeyError):
-        wrap.format_potential()
-    wrap.emb_pot.maininfo["inprog"] = "pyscf"
-    with pytest.raises(KeyError):
-        wrap.format_potential()
-    with pytest.raises(ValueError):
-        wrap.get_density()
-    fin_dm = np.loadtxt(cache.files["he_cc-pvtz_dm"])
-    read_dm = wrap.get_density(cache.files["he_cc-pvtz_dm_tri"])
-    np.testing.assert_allclose(fin_dm, read_dm, atol=1e-7)
+    # TODO: rewrite basic test!
+    return
+
+
+def test_omolcas_wrap_co_h2o_ccpvdz():
+    # Compared with ScfWrap results
+    # Compared with ScfWrap results
+    co = Molecule.from_data("""C        -3.6180905689    1.3768035675   -0.0207958979
+                               O        -4.7356838533    1.5255563000    0.1150239130""")
+    h2o = Molecule.from_data("""O  -7.9563726699    1.4854060709    0.1167920007
+                                H  -6.9923165534    1.4211335985    0.1774706091
+                                H  -8.1058463545    2.4422204631    0.1115993752""")
+    basis = """
+    #BASIS SET: (9s,4p,1d) -> [3s,2p,1d]
+C    S
+      6.665000E+03           6.920000E-04          -1.460000E-04           0.000000E+00
+      1.000000E+03           5.329000E-03          -1.154000E-03           0.000000E+00
+      2.280000E+02           2.707700E-02          -5.725000E-03           0.000000E+00
+      6.471000E+01           1.017180E-01          -2.331200E-02           0.000000E+00
+      2.106000E+01           2.747400E-01          -6.395500E-02           0.000000E+00
+      7.495000E+00           4.485640E-01          -1.499810E-01           0.000000E+00
+      2.797000E+00           2.850740E-01          -1.272620E-01           0.000000E+00
+      5.215000E-01           1.520400E-02           5.445290E-01           0.000000E+00
+      1.596000E-01          -3.191000E-03           5.804960E-01           1.000000E+00
+C    P
+      9.439000E+00           3.810900E-02           0.000000E+00
+      2.002000E+00           2.094800E-01           0.000000E+00
+      5.456000E-01           5.085570E-01           0.000000E+00
+      1.517000E-01           4.688420E-01           1.000000E+00
+C    D
+      5.500000E-01           1.0000000
+#BASIS SET: (9s,4p,1d) -> [3s,2p,1d]
+N    S
+      9.046000E+03           7.000000E-04          -1.530000E-04           0.000000E+00
+      1.357000E+03           5.389000E-03          -1.208000E-03           0.000000E+00
+      3.093000E+02           2.740600E-02          -5.992000E-03           0.000000E+00
+      8.773000E+01           1.032070E-01          -2.454400E-02           0.000000E+00
+      2.856000E+01           2.787230E-01          -6.745900E-02           0.000000E+00
+      1.021000E+01           4.485400E-01          -1.580780E-01           0.000000E+00
+      3.838000E+00           2.782380E-01          -1.218310E-01           0.000000E+00
+      7.466000E-01           1.544000E-02           5.490030E-01           0.000000E+00
+      2.248000E-01          -2.864000E-03           5.788150E-01           1.000000E+00
+N    P
+      1.355000E+01           3.991900E-02           0.000000E+00
+      2.917000E+00           2.171690E-01           0.000000E+00
+      7.973000E-01           5.103190E-01           0.000000E+00
+      2.185000E-01           4.622140E-01           1.000000E+00
+N    D
+      8.170000E-01           1.0000000
+#BASIS SET: (9s,4p,1d) -> [3s,2p,1d]
+O    S
+      1.172000E+04           7.100000E-04          -1.600000E-04           0.000000E+00
+      1.759000E+03           5.470000E-03          -1.263000E-03           0.000000E+00
+      4.008000E+02           2.783700E-02          -6.267000E-03           0.000000E+00
+      1.137000E+02           1.048000E-01          -2.571600E-02           0.000000E+00
+      3.703000E+01           2.830620E-01          -7.092400E-02           0.000000E+00
+      1.327000E+01           4.487190E-01          -1.654110E-01           0.000000E+00
+      5.025000E+00           2.709520E-01          -1.169550E-01           0.000000E+00
+      1.013000E+00           1.545800E-02           5.573680E-01           0.000000E+00
+      3.023000E-01          -2.585000E-03           5.727590E-01           1.000000E+00
+O    P
+      1.770000E+01           4.301800E-02           0.000000E+00
+      3.854000E+00           2.289130E-01           0.000000E+00
+      1.046000E+00           5.087280E-01           0.000000E+00
+      2.753000E-01           4.605310E-01           1.000000E+00
+O    D
+      1.185000E+00           1.0000000
+    """
+    method = 'hf'
+    args0 = {"mol": co, "basis": basis, "method": method}
+    args1 = {"mol": h2o, "basis": basis, "method": method}
+    embs = {"mol": co, "basis": basis, "method": 'hf',
+            "xc_code": 'LDA,VWN', "t_code": 'LDA_K_TF,'}
+    wrap = PyScfWrap(args0, args1, embs)
+    wrap.run_embedding()
+    wrap.print_embedding_information()
+    emb_pot = wrap.pot_object
+    emb_pot.maininfo['basis'] = 'cc-pvdz'
+    matdic = wrap.vemb_dict
+    embdic = wrap.energy_dict
+    postwrap = OpenMolcasWrap(emb_pot)
+    postwrap.format_potential()
+    vemb_tri = np.loadtxt('vemb_ordered_tri.txt')
+    nbas = emb_pot.maininfo['nbas']
+    ref_pot = np.loadtxt(cache.files["molcas_vemb_co_h2o_cc-pvdz"])
+    np.testing.assert_allclose(ref_pot, vemb_tri, atol=1e-4)
+    postwrap.prepare_for_postscf(embdic, matdic)
+    fin_dm = np.copy(matdic['dm0_final'])
+    read_dm = postwrap.get_density(cache.files["molcas_runascii_co_h2o_cc-pvdz"])
+    np.testing.assert_allclose(fin_dm, read_dm, atol=1e-5)
+    postwrap.dms_dict['dm0_final'] = read_dm
+    postwrap.save_info()
+    assert abs(postwrap.energy_dict['et_nad_final'] - embdic['et_nad_final']) < 1e-6
+    assert abs(postwrap.energy_dict['exc_nad_final'] - embdic['exc_nad_final']) < 1e-6
+    total_emb_ref = embdic['int_emb_xc'] + embdic['int_emb_t']
+    total_emb_new = postwrap.energy_dict['int_emb_xc'] + postwrap.energy_dict['int_emb_t']
+    print(total_emb_ref - total_emb_new)
+    assert abs(total_emb_ref - total_emb_new) < 1e-5
+    postwrap.print_embedding_information()
 
 
 if __name__ == "__main__":
@@ -478,3 +564,4 @@ if __name__ == "__main__":
     test_postscfwrap()
     test_postscfwrap_co_h2o()
     test_omolcas_wrap0()
+    test_omolcas_wrap_co_h2o_ccpvdz()

@@ -5,10 +5,6 @@ import numpy as np
 from taco.embedding.embpot import EmbPotBase
 
 
-def get_order_lists(atoms, basis_dict):
-    raise NotImplementedError
-
-
 class PostScfWrap():
     """Base class for Post-SCF from Quantum Chemistry Packages.
 
@@ -30,6 +26,7 @@ class PostScfWrap():
     save_info(self)
     print_embedding_information(self, to_csv)
     export_matrices(self)
+    prepare_for_postscf(self, scfenergy_dict, scfvemb_dict)
 
     """
     def __init__(self, emb_pot):
@@ -134,3 +131,10 @@ class PostScfWrap():
         """Save all matrices into files."""
         for element in self.dms_dict:
             np.savetxt(element+".txt", self.dms_dict[element])
+
+    def prepare_for_postscf(self, scfenergy_dict, scfvemb_dict):
+        """Save values vemb_dict for later calculations."""
+        self.emb_pot.vemb_dict["v_nad_xc_final"] = scfvemb_dict["v_nad_xc_final"]
+        self.emb_pot.vemb_dict["v_nad_t_final"] = scfvemb_dict["v_nad_t_final"]
+        self.emb_pot.vemb_dict["int_ref_xc"] = scfenergy_dict["int_ref_xc"]
+        self.emb_pot.vemb_dict["int_ref_t"] = scfenergy_dict["int_ref_t"]

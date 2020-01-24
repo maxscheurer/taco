@@ -26,7 +26,6 @@ class EmbPotBase():
     compute_attraction_potential(self)
     compute_nad_potential(self)
     compute_embedding_potential(self)
-    export_matrices(self)
 
     """
     def __init__(self, mol0, mol1, emb_args):

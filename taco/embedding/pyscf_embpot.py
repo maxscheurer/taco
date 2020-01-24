@@ -251,14 +251,14 @@ class PyScfEmbPot(EmbPotBase):
 
         """
         if dm0 is None:
-            if not self.dm0:
+            if self.dm0 is None:
                 raise AttributeError("Density matrix for fragment 0 is missing.")
             else:
                 dm0 = self.dm0
         else:
             self.assign_dm(0, dm0)
         if dm1 is None:
-            if not self.dm1:
+            if self.dm1 is None:
                 raise AttributeError("Density matrix for fragment 1 is missing.")
             else:
                 dm1 = self.dm1

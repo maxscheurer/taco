@@ -1,11 +1,11 @@
 """ The Base Class for Wrappers. """
 
-import json
+import re
 import numpy as np
 
-from taco.embedding.postscf_wrap import PostScfWrap, get_order_lists
-from taco.translate.order import transform
-from taco.data.cache import data
+from taco.embedding.postscf_wrap import PostScfWrap
+from taco.translate.tools import parse_matrices, triangular2square
+from taco.translate.tools import reorder_matrix
 
 
 class OpenMolcasWrap(PostScfWrap):
@@ -52,23 +52,11 @@ class OpenMolcasWrap(PostScfWrap):
             Name of the file to be used.
 
         """
-        # Get data from json file in data folder
-        jsonfn = data.jfiles['translation']
-        with open(jsonfn, 'r') as jf:
-            formatdata = json.load(jf)
         inprog = self.emb_pot.maininfo["inprog"]
         basis = self.emb_pot.maininfo["basis"]
         atoms = self.emb_pot.maininfo["atoms"]
-        natoms = len(atoms)
-        transkey = inprog+'2molcas'
-        if not formatdata[transkey]:
-            raise KeyError("No translation information available for %s SCF program." % inprog)
-        # check that there is info for the basis requested
-        if not formatdata[transkey][basis]:
-            raise KeyError("The information for %s basis is missing." % basis)
-        orders = get_order_lists(atoms, formatdata[transkey][basis])
         vemb_copy = self.emb_pot.compute_embedding_potential()
-        ordered_vemb = transform(vemb_copy, natoms, orders)
+        ordered_vemb = reorder_matrix(vemb_copy, inprog, 'molcas', basis, atoms)
         np.savetxt('vemb_ordered.txt', ordered_vemb, delimiter='\n')
         # OpenMolcas only reads triangular matrices
         lotri = np.tril(ordered_vemb)
@@ -79,33 +67,38 @@ class OpenMolcasWrap(PostScfWrap):
         """Write the input for OpenMolcas."""
         raise NotImplementedError
 
-    def prepare_density_file(self):
+    @staticmethod
+    def prepare_density_file(fname):
         """Prepare density to be read from OpenMolcas."""
-        raise NotImplementedError
+        hook = {'1dm': re.compile(r'\<(D1ao.)')}
+        parsed = parse_matrices(fname, hook, software='molcas')
+        return parsed['1dm']
 
     def get_density(self, fname=None):
-        """Read Post-SCF density from OpenMolcas.
+        r"""Read Post-SCF density from OpenMolcas.
 
         Returns
         -------
         dms : np.ndarray(NBas*(NBas+1)/2),
-            One-electron density (triangular) matrix. Only alpha for restricted
-            case.
+            One-electron density (packed) matrix.
+            Off-diagonal elements are double the size:
+            :math: `E=\sum_{n<m} D_{mn} H_{mn}`
+            Only alpha for restricted case.
 
         """
         if fname is None:
             raise ValueError("Input filename of DM must be given.")
         # Read from file
-        inp = np.loadtxt(fname)
+        inp = self.prepare_density_file(fname)
         # Re-shape into AO square matrix
-        nbas = self.emb_pot.maininfo["nbas"]
-        dm_inp = np.zeros((nbas, nbas))
-        count = 0
-        for i in range(nbas):
-            j = i + 1
-            dm_inp[i, :j] = inp[count:count+j]
-            count += j
+        nbas = int(self.emb_pot.maininfo["nbas"])
+        dm_inp = triangular2square(inp, nbas)
         # From triangular to square matrix
-        dm_out = dm_inp.T + dm_inp
+        dm_out = 0.5*(dm_inp.T + dm_inp)
         np.fill_diagonal(dm_out, np.diag(dm_inp))
-        return dm_out
+        # TODO: Miss reordering
+        outprog = self.emb_pot.maininfo["inprog"]
+        basis = self.emb_pot.maininfo["basis"]
+        atoms = self.emb_pot.maininfo["atoms"]
+        dm = reorder_matrix(dm_out, 'molcas', outprog, basis, atoms)
+        return dm
