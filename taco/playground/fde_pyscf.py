@@ -122,7 +122,7 @@ def run_co_h2o_pyscf(ibasis, return_matrices=False):
     rho_both = eval_rho(system, ao_both, dm_both, xctype='LDA')
     # Compute all densities on a grid
     xc_code = 'LDA,VWN'  # same as xc_code = 'XC_LDA_X + XC_LDA_C_VWN'
-    t_code = 'XC_LDA_K_TF'
+    t_code = 'LDA_K_TF,'
     excs, vxcs = get_dft_grid_stuff(xc_code, rho_both, rho_co, rho_h2o)
     ets, vts = get_dft_grid_stuff(t_code, rho_both, rho_co, rho_h2o)
     vxc_emb = vxcs[0][0] - vxcs[1][0]
@@ -249,7 +249,7 @@ def run_co_h2o_pyscf_dft(ibasis, return_matrices=False):
     rho_both = eval_rho(system, ao_both, dm_both, xctype='LDA')
     # Compute all densities on a grid
     xc_code = 'LDA,VWN'  # same as xc_code = 'XC_LDA_X + XC_LDA_C_VWN'
-    t_code = 'XC_LDA_K_TF'
+    t_code = 'LDA_K_TF,'
     excs, vxcs = get_dft_grid_stuff(xc_code, rho_both, rho_co, rho_h2o)
     ets, vts = get_dft_grid_stuff(t_code, rho_both, rho_co, rho_h2o)
     vxc_emb = vxcs[0][0] - vxcs[1][0]

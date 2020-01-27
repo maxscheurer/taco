@@ -3,9 +3,6 @@ Taco
 FDE wrapper library
 """
 
-# Add imports here
-from .taco import *
-
 # Handle versioneer
 from ._version import get_versions
 versions = get_versions()

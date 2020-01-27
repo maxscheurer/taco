@@ -5,9 +5,9 @@ language: python
 matrix:
   include:
     # Extra includes for OSX since python language is not available by default on OSX
-    - os: osx
-      language: generic
-      env: PYTHON_VER=3.6
+ #  - os: osx
+ #    language: generic
+ #    env: PYTHON_VER=3.6
     - os: osx
       language: generic
       env: PYTHON_VER=3.7
@@ -20,7 +20,14 @@ matrix:
       language: generic
       env: PYTHON_VER=3.7
 
-
+addons:
+  apt:
+    sources:
+    - ubuntu-toolchain-r-test
+    packages:
+    - gcc-4.8
+    - g++-4.8
+  
 before_install:
     # Additional info about the build
   - uname -a
@@ -43,6 +50,8 @@ install:
   - pip install qcelemental
     # install pandas
   - pip install pandas
+    # install pybind11
+  - pip install pybind11
     # Build and install package
   - python setup.py develop --no-deps
 

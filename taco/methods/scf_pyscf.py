@@ -79,8 +79,6 @@ class ScfPyScf(ScfMethod):
             Only needed for DFT.
         """
         ScfMethod.__init__(self, mol)
-        if not isinstance(basis, str):
-            raise TypeError("Basis set must be a string.")
         self.mol_pyscf = get_pyscf_molecule(self.mol, basis)
         if self.restricted:
             if method.lower() == 'dft':

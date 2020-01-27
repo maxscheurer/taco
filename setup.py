@@ -3,7 +3,7 @@ Taco
 FDE wrapper library
 """
 import sys
-from setuptools import setup, find_packages
+from setuptools import setup, find_packages, Extension
 import versioneer
 
 short_description = __doc__.split("\n")
@@ -18,6 +18,35 @@ try:
 except:
     long_description = "\n".join(short_description[2:]),
 
+# To build PyBind11 code, all taken from: python_example
+# https://github.com/pybind/python_example.git
+class get_pybind_include(object):
+    """Helper class to determine the pybind11 include path
+    The purpose of this class is to postpone importing pybind11
+    until it is actually installed, so that the ``get_include()``
+    method can be invoked. """
+
+    def __init__(self, user=False):
+        self.user = user
+
+    def __str__(self):
+        import pybind11
+        return pybind11.get_include(self.user)
+
+# Define the extensions
+ext_modules = [
+    Extension(
+        'taco.embedding.cc_gridfns',
+        ['./taco/embedding/cc_gridfns.cpp'],
+        include_dirs=[
+            # Path to pybind11 headers
+            get_pybind_include(),
+            get_pybind_include(user=True)
+        ],
+        language='c++',
+        extra_compile_args=['-std=c++11'],
+    ),
+    ]
 
 setup(
     # Self-descriptive entries which should always be present
@@ -31,6 +60,9 @@ setup(
     cmdclass=versioneer.get_cmdclass(),
     license='LGPLv3',
 
+    # External modules
+    ext_modules=ext_modules,
+
     # Which Python importable modules should be included when your package is installed
     # Handled automatically by setuptools. Use 'exclude' to prevent some specific
     # subpackage(s) from being added, if needed
@@ -42,7 +74,8 @@ setup(
     include_package_data=True,
 
     # Allows `setup.py test` to work correctly with pytest
-    setup_requires=[] + pytest_runner,
+    install_requires=['pybind11>=2.3'],
+    setup_requires=['pybind11>=2.3'] + pytest_runner,
 
     # Additional entries you may want simply uncomment the lines you want and fill in the data
     # url='http://www.my_package.com',  # Website
