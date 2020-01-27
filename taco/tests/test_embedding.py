@@ -13,11 +13,11 @@ from taco.embedding.embpot import EmbPotBase
 from taco.embedding.pyscf_embpot import PyScfEmbPot
 from taco.embedding.scf_wrap import ScfWrap
 from taco.embedding.scf_wrap_single import ScfWrapSingle
+from taco.embedding.pyscf_tddft import compute_emb_kernel
 from taco.embedding.pyscf_wrap import PyScfWrap
 from taco.embedding.pyscf_wrap_single import PyScfWrapSingle
 from taco.embedding.postscf_wrap import PostScfWrap
 from taco.embedding.omolcas_wrap import OpenMolcasWrap
-from taco.translate.order import transform
 from taco.testdata.cache import cache
 
 
@@ -464,62 +464,8 @@ def test_omolcas_wrap_co_h2o_ccpvdz():
     h2o = Molecule.from_data("""O  -7.9563726699    1.4854060709    0.1167920007
                                 H  -6.9923165534    1.4211335985    0.1774706091
                                 H  -8.1058463545    2.4422204631    0.1115993752""")
-    basis = """
-    #BASIS SET: (9s,4p,1d) -> [3s,2p,1d]
-C    S
-      6.665000E+03           6.920000E-04          -1.460000E-04           0.000000E+00
-      1.000000E+03           5.329000E-03          -1.154000E-03           0.000000E+00
-      2.280000E+02           2.707700E-02          -5.725000E-03           0.000000E+00
-      6.471000E+01           1.017180E-01          -2.331200E-02           0.000000E+00
-      2.106000E+01           2.747400E-01          -6.395500E-02           0.000000E+00
-      7.495000E+00           4.485640E-01          -1.499810E-01           0.000000E+00
-      2.797000E+00           2.850740E-01          -1.272620E-01           0.000000E+00
-      5.215000E-01           1.520400E-02           5.445290E-01           0.000000E+00
-      1.596000E-01          -3.191000E-03           5.804960E-01           1.000000E+00
-C    P
-      9.439000E+00           3.810900E-02           0.000000E+00
-      2.002000E+00           2.094800E-01           0.000000E+00
-      5.456000E-01           5.085570E-01           0.000000E+00
-      1.517000E-01           4.688420E-01           1.000000E+00
-C    D
-      5.500000E-01           1.0000000
-#BASIS SET: (9s,4p,1d) -> [3s,2p,1d]
-N    S
-      9.046000E+03           7.000000E-04          -1.530000E-04           0.000000E+00
-      1.357000E+03           5.389000E-03          -1.208000E-03           0.000000E+00
-      3.093000E+02           2.740600E-02          -5.992000E-03           0.000000E+00
-      8.773000E+01           1.032070E-01          -2.454400E-02           0.000000E+00
-      2.856000E+01           2.787230E-01          -6.745900E-02           0.000000E+00
-      1.021000E+01           4.485400E-01          -1.580780E-01           0.000000E+00
-      3.838000E+00           2.782380E-01          -1.218310E-01           0.000000E+00
-      7.466000E-01           1.544000E-02           5.490030E-01           0.000000E+00
-      2.248000E-01          -2.864000E-03           5.788150E-01           1.000000E+00
-N    P
-      1.355000E+01           3.991900E-02           0.000000E+00
-      2.917000E+00           2.171690E-01           0.000000E+00
-      7.973000E-01           5.103190E-01           0.000000E+00
-      2.185000E-01           4.622140E-01           1.000000E+00
-N    D
-      8.170000E-01           1.0000000
-#BASIS SET: (9s,4p,1d) -> [3s,2p,1d]
-O    S
-      1.172000E+04           7.100000E-04          -1.600000E-04           0.000000E+00
-      1.759000E+03           5.470000E-03          -1.263000E-03           0.000000E+00
-      4.008000E+02           2.783700E-02          -6.267000E-03           0.000000E+00
-      1.137000E+02           1.048000E-01          -2.571600E-02           0.000000E+00
-      3.703000E+01           2.830620E-01          -7.092400E-02           0.000000E+00
-      1.327000E+01           4.487190E-01          -1.654110E-01           0.000000E+00
-      5.025000E+00           2.709520E-01          -1.169550E-01           0.000000E+00
-      1.013000E+00           1.545800E-02           5.573680E-01           0.000000E+00
-      3.023000E-01          -2.585000E-03           5.727590E-01           1.000000E+00
-O    P
-      1.770000E+01           4.301800E-02           0.000000E+00
-      3.854000E+00           2.289130E-01           0.000000E+00
-      1.046000E+00           5.087280E-01           0.000000E+00
-      2.753000E-01           4.605310E-01           1.000000E+00
-O    D
-      1.185000E+00           1.0000000
-    """
+    with open(cache.files["molcas_basis_cc-pvdz"], 'r') as bfile:
+        basis = bfile.read()
     method = 'hf'
     args0 = {"mol": co, "basis": basis, "method": method}
     args1 = {"mol": h2o, "basis": basis, "method": method}
@@ -535,7 +481,6 @@ O    D
     postwrap = OpenMolcasWrap(emb_pot)
     postwrap.format_potential()
     vemb_tri = np.loadtxt('vemb_ordered_tri.txt')
-    nbas = emb_pot.maininfo['nbas']
     ref_pot = np.loadtxt(cache.files["molcas_vemb_co_h2o_cc-pvdz"])
     np.testing.assert_allclose(ref_pot, vemb_tri, atol=1e-4)
     postwrap.prepare_for_postscf(embdic, matdic)
@@ -553,6 +498,44 @@ O    D
     postwrap.print_embedding_information()
 
 
+def test_compute_emb_kernel():
+    """Test function to evaluate the xcT second derivatives."""
+    # Basic tests
+    pot0 = 'mol'
+    dm0 = 123
+    basis = 'sto-3g'
+    mol0 = gto.M(atom="""Ne  0.00000    0.00000    0.00000""",
+                 basis=basis)
+    emb_args = {'xc_code': 'LDA,VWN', 't_code': 'LDA_K_TF,'}
+    pot1 = PyScfEmbPot(mol0, mol0, emb_args)
+    dm1 = np.arange(10)
+    with pytest.raises(TypeError):
+        compute_emb_kernel(pot0, dm0, dm0)
+    with pytest.raises(TypeError):
+        compute_emb_kernel(pot1, dm0, dm0)
+    with pytest.raises(TypeError):
+        compute_emb_kernel(pot1, dm1, dm0)
+    # Use wrap
+    # Compared with ScfWrap results
+    mol = Molecule.from_data(mol0.atom)
+    mol1 = Molecule.from_data("""He  1.00000    0.00000    0.0000000""")
+    method = 'hf'
+    args0 = {"mol": mol, "basis": basis, "method": method}
+    args1 = {"mol": mol1, "basis": basis, "method": method}
+    embs = {"mol": mol, "basis": basis, "method": 'hf',
+            "xc_code": 'LDA,VWN', "t_code": 'LDA_K_TF,'}
+    wrap = PyScfWrap(args0, args1, embs)
+    wrap.run_embedding()
+    emb_pot = wrap.pot_object
+    dm0 = wrap.vemb_dict["dm0_final"]
+    dm1 = wrap.vemb_dict['dm1_ref']
+    fxc, ft = compute_emb_kernel(emb_pot, dm0, dm1)
+    emb_pot.assign_dm(0, dm0)
+    emb_pot.assign_dm(1, dm1)
+    ref_vnad = emb_pot.compute_nad_potential()
+    exc_nad, et_nad, v_nad_xc, v_nad_t = ref_vnad
+
+
 if __name__ == "__main__":
     test_embpotbase()
     test_scfwrap()
@@ -565,3 +548,4 @@ if __name__ == "__main__":
     test_postscfwrap_co_h2o()
     test_omolcas_wrap0()
     test_omolcas_wrap_co_h2o_ccpvdz()
+    test_compute_emb_kernel()
