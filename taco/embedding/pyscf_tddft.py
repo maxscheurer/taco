@@ -61,4 +61,18 @@ def compute_emb_kernel(embpot, dm0, dm1):
                                (rho_mol0*0.5, rho_mol0*0.5), vxc_nad, fxc_nad)
     ft_emb = nr_rks_fxc_st(ni, mol0, grids, t_code, dm0, dm0*0.5, 0, True,
                               (rho_mol0*0.5, rho_mol0*0.5), vt_nad, ft_nad)
-    return (fxc_emb, ft_emb)
+    # General case
+    vxc_Tot, fxc_Tot = ni.eval_xc(xc_code, rho_both, 0, deriv=2)[1:3]
+    vt_Tot, ft_Tot = ni.eval_xc(t_code, rho_both, 0, deriv=2)[1:3]
+    vxc_0, fxc_0 = ni.eval_xc(xc_code, rho_mol0, 0, deriv=2)[1:3]
+    vt_0, ft_0 = ni.eval_xc(t_code, rho_mol0, 0, deriv=2)[1:3]
+    vxc = (vxc_Tot[0] - vxc_0[0], None, None, None)
+    vts = (vt_Tot[0] - vt_0[0], None, None, None)
+    fxc = (fxc_Tot[0] - fxc_0[0],) + (None,)*9
+    fts = (ft_Tot[0] - ft_0[0],) + (None,)*9
+    v1xc = ni.nr_rks_fxc(mol0, grids, xc_code, dm0, dm0, 0, True,
+                         rho_mol0, vxc, fxc)
+    v1ts = ni.nr_rks_fxc(mol0, grids, t_code, dm0, dm0, 0, True,
+                         rho_mol0, vts, fts)
+    # return (fxc_emb, ft_emb)
+    return (v1xc, v1ts)
