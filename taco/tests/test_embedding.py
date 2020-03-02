@@ -530,22 +530,22 @@ def test_compute_emb_kernel():
     dm0 = wrap.vemb_dict["dm0_final"]
     dm1 = wrap.vemb_dict['dm1_ref']
     fxc, ft = compute_emb_kernel(emb_pot, dm0, dm1)
-    emb_pot.assign_dm(0, dm0)
-    emb_pot.assign_dm(1, dm1)
-    ref_vnad = emb_pot.compute_nad_potential()
-    exc_nad, et_nad, v_nad_xc, v_nad_t = ref_vnad
+    print('Energies')
+    print(np.einsum('ab,ba', fxc, dm0))
+    print(np.einsum('ab,ba', ft, dm0))
+    # Note that the difference of using only A or AB for the grid is ~10^-7
 
 
 if __name__ == "__main__":
-    test_embpotbase()
-    test_scfwrap()
-    test_pyscf_wrap0()
-    test_pyscf_wrap_hf_co_h2o_sto3g()
-    test_pyscf_wrap_dft_co_h2o_sto3g()
-    test_scfwrap_single()
-    test_pyscf_wrap_single_co_h2o()
-    test_postscfwrap()
-    test_postscfwrap_co_h2o()
-    test_omolcas_wrap0()
-    test_omolcas_wrap_co_h2o_ccpvdz()
+#   test_embpotbase()
+#   test_scfwrap()
+#   test_pyscf_wrap0()
+#   test_pyscf_wrap_hf_co_h2o_sto3g()
+#   test_pyscf_wrap_dft_co_h2o_sto3g()
+#   test_scfwrap_single()
+#   test_pyscf_wrap_single_co_h2o()
+#   test_postscfwrap()
+#   test_postscfwrap_co_h2o()
+#   test_omolcas_wrap0()
+#   test_omolcas_wrap_co_h2o_ccpvdz()
     test_compute_emb_kernel()

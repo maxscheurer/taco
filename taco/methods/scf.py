@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 """
 FDE SCF Methods Base Class.
 """
