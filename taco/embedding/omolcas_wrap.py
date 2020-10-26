@@ -6,6 +6,7 @@ import numpy as np
 from taco.embedding.postscf_wrap import PostScfWrap
 from taco.translate.tools import parse_matrices, triangular2square
 from taco.translate.tools import reorder_matrix
+from taco.embedding.density import prepare_omolcas_density
 
 
 class OpenMolcasWrap(PostScfWrap):
@@ -68,11 +69,23 @@ class OpenMolcasWrap(PostScfWrap):
         raise NotImplementedError
 
     @staticmethod
-    def prepare_density_file(fname):
-        """Prepare density to be read from OpenMolcas."""
-        hook = {'1dm': re.compile(r'\<(D1ao.)')}
-        parsed = parse_matrices(fname, hook, software='molcas')
-        return parsed['1dm']
+    def prepare_density_file(fname, mo_repr=False):
+        """Prepare density to be read from OpenMolcas.
+
+        Parameters
+        ----------
+        fname : str
+            Name of file from where the density is taken.
+        mo_repr : bool
+            Whether the density matrix to be read is in MO basis.
+
+        Returns
+        -------
+        dm : np.ndarray
+            Density matrix in AO or MO representation.
+        """
+        dm = prepare_omolcas_density(fname, mo_repr)
+        return dm
 
     def get_density(self, fname=None):
         r"""Read Post-SCF density from OpenMolcas.

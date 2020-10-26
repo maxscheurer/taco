@@ -1,6 +1,7 @@
 """PySCF Utilities for Embedding calculations."""
 
 import numpy as np
+from pyscf.dft.libxc import xc_type
 
 
 class EmbPotBase():
@@ -53,11 +54,19 @@ class EmbPotBase():
     @staticmethod
     def check_emb_arguments(emb_args):
         if not isinstance(emb_args, dict):
-            raise TypeError["emb_args must be a dictionary with embedding arguments."]
+            raise TypeError("emb_args must be a dictionary with embedding arguments.")
         if emb_args['xc_code'] is None:
             raise KeyError("Missing to specify `xc_code` in emb_args.")
+        else:
+            xctype = xc_type(emb_args['xc_code'])
+            if xctype not in ['LDA', 'GGA']:
+                raise NotImplementedError("Only `LDA` and `GGA` functionals are available")
         if 't_code' not in emb_args:
             raise KeyError("Missing to specify `t_code` in emb_args.")
+        else:
+            xctype = xc_type(emb_args['t_code'])
+            if xctype not in ['LDA', 'GGA']:
+                raise NotImplementedError("Only `LDA` and `GGA` kinetic energy funcitonals available")
 
     def assign_dm(self, nfrag, dm):
         """Assign matrix to object attribite.

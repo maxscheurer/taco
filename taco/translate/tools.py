@@ -8,7 +8,7 @@ from taco.data.cache import data
 from taco.translate.order import transform
 
 
-def parse_matrix_molcas(lines, nline):
+def parse_matrix_molcas(lines, nline, file_type='runascii'):
     """Parse a matrix from RUNASCII OpenMolcas file.
 
     Parameters
@@ -17,8 +17,9 @@ def parse_matrix_molcas(lines, nline):
         From readlines object.
     nline : int
         Line number of identifier.
-    istri : bool
-        Whether the matrix is in triangular form or not.
+    file_type : str
+        Type of file from where it is parsed, determines how
+        to define the matrix.
 
     Returns
     -------
@@ -29,9 +30,19 @@ def parse_matrix_molcas(lines, nline):
         raise TypeError("lines should be given as a list.")
     if not isinstance(nline, int):
         raise TypeError("nline must be int.")
-    iline = nline + 1
-    dimension = int(lines[iline].strip().split()[0])
-    iline += 1
+    if file_type == 'runascii':
+        iline = nline + 1
+        dimension = int(lines[iline].strip().split()[0])
+        iline += 1
+    elif file_type == 'orbitals':
+        dimension = int(lines[4].strip())
+        iline = nline + 1
+    elif file_type == 'h5':
+        raise NotImplementedError
+    else:
+        raise ValueError('`file_type` is not correct or not available.')
+
+    # Now read numbers
     matrix = []
     while len(matrix) < dimension:
         data = lines[iline].strip().split()
@@ -43,13 +54,14 @@ def parse_matrix_molcas(lines, nline):
     return np.array(matrix)
 
 
-def parse_matrices(fname, hooks, software):
+def parse_matrices(data, hooks, software, file_type=None):
     """Parse many matrices from file.
 
     Parameters
     ----------
-    fname : str
-        Filename to be parsed.
+    data : str or list
+        If str, the filename to be parsed. If list, the list
+        of lines of strings is expected.
     hooks : dict
         Dictionary with the name of the element to parse
         and the hooks or identifier.
@@ -64,17 +76,52 @@ def parse_matrices(fname, hooks, software):
     if not isinstance(hooks, dict):
         raise TypeError("`hooks` should be given as a dictionary.")
     parsed = {}
+    if isinstance(data, list):
+        lines = data
+    elif isinstance(data, str):
+        with open(data, 'r') as thefile:
+            lines = thefile.readlines()
+    else:
+        raise TypeError('`data` must be either str or list of str.')
+    for n, line in enumerate(lines):
+        for key, hook in hooks.items():
+            match = hook.search(line)
+            if match:
+                if software == 'molcas':
+                    if file_type:
+                        parsed[key] = parse_matrix_molcas(lines, n, file_type)
+                    else:
+                        parsed[key] = parse_matrix_molcas(lines, n)
+                else:
+                    raise NotImplementedError
+    return parsed
+
+
+def parse_orbitals_molcas(fname):
+    """ Parse orbitals from OMolcas orbital files.
+
+    Parameters
+    ----------
+    fname : str
+        Filename of orbitals file.
+
+    Returns
+    -------
+    orbs : np.array
+        N x N matrix with orbital coefficients orbs[i, :] is each orbital.
+    """
     with open(fname, 'r') as thefile:
         lines = thefile.readlines()
-        for n, line in enumerate(lines):
-            for key, hook in hooks.items():
-                match = hook.search(line)
-                if match:
-                    if software == 'molcas':
-                        parsed[key] = parse_matrix_molcas(lines, n)
-                    else:
-                        raise NotImplementedError
-    return parsed
+    norbs = int(lines[4].strip())  # Assuming it's always same format
+    orbs = np.zeros((norbs, norbs))
+    hooks = {}
+    for i in range(1, norbs+1):
+        string = r'\* ORBITAL    1' + '{:>5}'.format(i)
+        hooks['orbital%d' % i] = re.compile(string)
+    parsed = parse_matrices(lines, hooks, 'molcas', file_type='orbitals')
+    for i in range(norbs):
+        orbs[i, :] = parsed['orbital%d' % (i+1)]
+    return orbs
 
 
 def triangular2square(trimat, n):
@@ -133,8 +180,10 @@ def get_order_lists(atoms, basis_dict):
             orders.append(basis_dict['first'])
         elif 2 < atom < 11:
             orders.append(basis_dict['second'])
+        elif 11 < atom < 19:
+            orders.append(basis_dict['third'])
         else:
-            NotImplementedError('At the moment only first and second row elements are available.')
+            raise NotImplementedError('At the moment only first and second row elements are available.')
     return orders
 
 

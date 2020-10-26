@@ -45,7 +45,9 @@ install:
     # Activate the test environment
   - conda activate test
     # install pyscf
-  - pip install pyscf
+  - if [ "$TRAVIS_OS_NAME" = "osx" ]; then conda config --append channels pyscf ; fi
+  - if [ "$TRAVIS_OS_NAME" = "osx" ]; then conda install pyscf ; fi
+  - if [ "$TRAVIS_OS_NAME" = "linux" ]; then pip install pyscf ; fi
     # install QCElemental
   - pip install qcelemental
     # install pandas

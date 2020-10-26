@@ -2,7 +2,7 @@
 
 import numpy as np
 
-from taco.embedding.embpot import EmbPotBase
+from taco.embedding.emb_pot import EmbPotBase
 
 
 class PostScfWrap():

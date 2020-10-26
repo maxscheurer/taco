@@ -6,7 +6,7 @@ from pyscf.dft import gen_grid
 from pyscf.dft.numint import NumInt, nr_rks_fxc_st
 from pyscf.dft.numint import eval_ao, eval_rho, eval_mat
 
-from taco.embedding.pyscf_embpot import PyScfEmbPot
+from taco.embedding.pyscf_emb_pot import PyScfEmbPot
 from taco.testdata.cache import cache
 
 

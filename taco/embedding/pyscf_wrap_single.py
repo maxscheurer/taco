@@ -1,12 +1,13 @@
 """PySCF Utilities for Embedding calculations."""
 
 import numpy as np
+from pyscf import gto, lib, df
 from pyscf.dft import libxc
 from pyscf.dft.numint import eval_ao, eval_rho, eval_mat
 
 from taco.embedding.scf_wrap_single import ScfWrapSingle
 from taco.embedding.pyscf_wrap import get_pyscf_method
-from taco.embedding.pyscf_embpot import get_charges_and_coords
+from taco.embedding.pyscf_emb_pot import get_charges_and_coords
 from taco.embedding.cc_gridfns import coulomb_potential_grid, nuclear_attraction_energy
 
 
@@ -29,6 +30,26 @@ def get_dft_grid_stuff(code, rho_both, rho1, rho2):
     return (exc, exc2, exc3), (vxc, vxc2, vxc3)
 
 
+def get_coulomb_repulsion(mol, dm, grid):
+    """Compute the coulomb repulsion using AO integrals.
+
+    Paramters
+    ---------
+    mol : gto.M
+        Molecule of fragment B
+    dm : np.ndarray(NAOs, NAOS)
+        Density matrix of fragment B
+    grid : np.ndarray((N, 3))
+        3D array of coordinates
+    """
+    v_coul = np.empty_like(grid[:, 0])
+    for p0, p1 in lib.prange(0, v_coul.size, 600):
+        fakemol = gto.fakemol_for_charges(grid[p0:p1])
+        ints = df.incore.aux_e2(mol, fakemol)
+        v_coul[p0:p1] = np.einsum('ijp,ij->p', ints, dm)
+    return v_coul
+
+
 def get_electrostatic_potentials(mol0, rho0, dens_func, frag1_charges, grid_args):
     """Compute nuclear attraction between fragments.
 
@@ -49,7 +70,7 @@ def get_electrostatic_potentials(mol0, rho0, dens_func, frag1_charges, grid_args
     v_coulomb = eval_mat(mol0, ao_mol0, grid_args["weights"], rho0, v_coul, xctype='LDA')
 
     # Nuclear-electron attraction integrals
-    mol0_charges, mol1_coords = get_charges_and_coords(mol0)
+    mol0_charges, mol0_coords = get_charges_and_coords(mol0)
     mol1_charges = frag1_charges["charges"]
     mol1_coords = frag1_charges["charges_coords"]
     v0_nuc1 = 0
@@ -61,7 +82,7 @@ def get_electrostatic_potentials(mol0, rho0, dens_func, frag1_charges, grid_args
     return elst_potentials
 
 
-def get_density_from_dm(mol, dm, points):
+def get_density_from_dm(mol, dm, points, xctype='LDA', deriv=0):
     """Compute density on a grid from the density matrix.
 
     Parameters
@@ -72,6 +93,11 @@ def get_density_from_dm(mol, dm, points):
         Density matrix corresponding to mol.
     points : np.ndarray
         Grid points where the density is evaluated.
+    xctype : str
+        Type of functional it's used later. This defines
+        how many derivatives or rho will be computed.
+    deriv : int
+        Number of derivatives needed for orbitals and density.
 
     Returns
     -------
@@ -79,8 +105,8 @@ def get_density_from_dm(mol, dm, points):
         Density on a grid.
 
     """
-    ao_mol = eval_ao(mol, points, deriv=0)
-    rho = eval_rho(mol, ao_mol, dm, xctype='LDA')
+    ao_mol = eval_ao(mol, points, deriv=deriv)
+    rho = eval_rho(mol, ao_mol, dm, xctype=xctype)
     return rho
 
 

@@ -2,7 +2,7 @@
 
 import numpy as np
 from taco.embedding.scf_wrap import ScfWrap
-from taco.embedding.pyscf_embpot import PyScfEmbPot, compute_nuclear_repulsion
+from taco.embedding.pyscf_emb_pot import PyScfEmbPot, compute_nuclear_repulsion
 from taco.methods.scf_pyscf import ScfPyScf
 
 

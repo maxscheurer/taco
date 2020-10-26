@@ -61,7 +61,7 @@ setup(
     license='LGPLv3',
 
     # External modules
-    ext_modules=ext_modules,
+    # ext_modules=ext_modules,
 
     # Which Python importable modules should be included when your package is installed
     # Handled automatically by setuptools. Use 'exclude' to prevent some specific
